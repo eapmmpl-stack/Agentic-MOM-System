@@ -1,211 +1,114 @@
-# MOM AI Assistant
+# Botivate: Agentic Minutes of Meeting (MOM) System
 
-**AI-Powered Minutes of Meeting Management System**
+![Botivate Logo](frontend/public/botivate-logo-cropped.png)
 
-A production-grade full-stack application that converts uploaded MOM documents or manually filled MOM forms into structured meeting records, automatically extracts tasks, assigns responsibilities, sends notifications, tracks progress and attendance, and provides a professional dashboard.
+Botivate is an intelligent, agentic system designed to autonomously handle, analyze, and document your meeting minutes on autopilot. By leveraging AI capabilities, Botivate transforms unstructured meeting interactions into highly structured, actionable intelligence.
 
----
+## 🚀 Key Features
 
-## Architecture
-
-```
-┌──────────────────────────────────────────────────────┐
-│                    React Frontend                     │
-│  (Vite + TypeScript + TailwindCSS + React Query)     │
-└────────────────────────┬─────────────────────────────┘
-                         │  REST API (JSON)
-┌────────────────────────▼─────────────────────────────┐
-│                  FastAPI Backend                       │
-│  ┌─────────┐  ┌──────────┐  ┌───────────────────┐   │
-│  │  Auth   │  │  CRUD    │  │  Upload + AI      │   │
-│  │  (JWT)  │  │  APIs    │  │  Pipeline          │   │
-│  └─────────┘  └──────────┘  └────────┬──────────┘   │
-│                                       │              │
-│  ┌────────────────────────────────────▼───────────┐  │
-│  │           LangGraph Workflow                    │  │
-│  │  ExtractText → CleanText → AIExtraction →      │  │
-│  │  Validate → Save → CreateTasks → Notify        │  │
-│  └────────────────────────────────────────────────┘  │
-│                                                      │
-│  ┌──────────────┐  ┌────────────┐  ┌─────────────┐  │
-│  │ SQLAlchemy   │  │ APScheduler│  │ Notification │  │
-│  │ (SQLite/PG)  │  │ (Cron)     │  │ (Email/WA)  │  │
-│  └──────────────┘  └────────────┘  └─────────────┘  │
-└──────────────────────────────────────────────────────┘
-```
+- **Agentic Summarization:** The system autonomously drafts MOMs (Minutes of Meeting), identifies key topics, and maps conversations to specific agendas.
+- **Intelligent Task Extraction:** Action items are automatically isolated, categorized, and assigned to respective owners without manual intervention.
+- **Automated Notifications & Execution:** Botivate automatically sends professional summary emails with dynamically generated, meticulously styled **PDF attachments** directly to stakeholders.
+- **Rich Analytics Dashboard:** Gain deep insights into team productivity, meeting frequency trends, attendance rates, and action-item completion metrics.
+- **Modern & Premium UI:** Designed with a sleek, minimalist dark/light mode interface characterized by glassmorphism, dynamic animations, and brand-consistent `#399dff` styling.
 
 ---
 
-## Tech Stack
+## 🧠 System Architecture & Workflow
 
-| Layer          | Technology                                        |
-|----------------|---------------------------------------------------|
-| Backend        | FastAPI, Python 3.11+, SQLAlchemy, Alembic         |
-| AI             | OpenAI GPT-4, LangChain, LangGraph                |
-| Frontend       | React 18, TypeScript, Vite, TailwindCSS            |
-| State          | Zustand, React Query                               |
-| Database       | SQLite (swappable to PostgreSQL)                   |
-| Notifications  | SMTP Email, Twilio WhatsApp                        |
-| Background     | APScheduler                                        |
-| Auth           | JWT (OAuth2 Password Bearer)                       |
+Below is the high-level workflow of the Botivate Agentic MOM System, outlining how raw data translates into automated task resolution.
 
----
+```mermaid
+graph TD
+    classDef user fill:#eef7ff,stroke:#399dff,stroke-width:2px,color:#000
+    classDef agent fill:#bcdeff,stroke:#1b80f5,stroke-width:2px,color:#000
+    classDef db fill:#0d1117,stroke:#399dff,stroke-width:2px,color:#fff
+    classDef external fill:#f59e0b,stroke:#b45309,stroke-width:2px,color:#000
 
-## Features
+    A(HR / System Administrator) -->|"1. Schedules Meeting"| B[Botivate Dashboard]
+    B -->|"2. Meeting API"| C(FastAPI Backend)
+    C <-->|"3. Persists Data"| D[(PostgreSQL Database)]
+    
+    A -->|"4. Triggers Record MOM"| E{Agentic MOM Processor}
+    
+    subgraph AI Processing Core
+        E -->|"Analyzes Context & Sentiment"| F[Agenda Extraction]
+        E -->|"Identifies Action Items"| G[Task Generation]
+        E -->|"Calculates Metrics"| H[Analytic Aggregation]
+    end
+    
+    F --> I[Finalized Documentation]
+    G --> I
+    H --> I
+    
+    I -->|"5. Triggers PDF Engine"| J[PDF Generator Module]
+    J -->|"Generates & Encrypts"| K[Structured MOM PDF]
+    
+    K -->|"6. Triggers Mailer"| L[Automated Email Agent]
+    L -->|"7. Dispatches Secure Email"| M((Stakeholders / Attendees))
 
-- **Two MOM Input Methods**: Upload PDF/TXT or fill manual form
-- **AI Extraction**: GPT-4 extracts meeting details, attendees, agenda, action items
-- **LangGraph Pipeline**: Multi-node workflow for processing MOMs
-- **Task Management**: Auto-create tasks from action items, track status history
-- **Attendance Tracking**: Track meeting attendance, warn frequent absentees
-- **Notifications**: Email alerts for task assignments, deadlines, overdue items
-- **Dashboard**: Stats, charts (Recharts), recent meetings, overdue tasks
-- **Role-Based Access**: CEO (full), Manager (meetings+tasks), HR (create+attendance), Employee (view)
-- **Dark/Light Mode**: Toggle via top bar
-- **Background Jobs**: Scheduled deadline reminders, overdue alerts, absentee warnings
-
----
-
-## Project Structure
-
-```
-MOM_AI_Assistant/
-├── backend/
-│   ├── app/
-│   │   ├── api/              # FastAPI routers
-│   │   ├── ai/               # AI extraction service
-│   │   ├── core/             # Security, auth
-│   │   ├── database/         # DB engine, session
-│   │   ├── models/           # SQLAlchemy models
-│   │   ├── notifications/    # Email, WhatsApp services
-│   │   ├── schemas/          # Pydantic schemas
-│   │   ├── services/         # Business logic layer
-│   │   ├── workflows/        # LangGraph pipeline
-│   │   ├── config.py
-│   │   └── main.py
-│   ├── alembic/              # Database migrations
-│   ├── requirements.txt
-│   └── .env.example
-├── frontend/
-│   ├── src/
-│   │   ├── components/       # Reusable UI components
-│   │   ├── pages/            # Page components
-│   │   ├── api.ts            # Axios instance
-│   │   ├── store.ts          # Zustand stores
-│   │   ├── types.ts          # TypeScript types
-│   │   ├── App.tsx           # Router + layout
-│   │   └── main.tsx          # Entry point
-│   ├── package.json
-│   ├── vite.config.ts
-│   └── tsconfig.json
-└── README.md
+    class A,M user;
+    class E,F,G,H,J,L agent;
+    class D db;
+    class B,C external;
 ```
 
 ---
 
-## Getting Started
+## 🛠 Tech Stack
 
-### Prerequisites
+### Frontend
+- **React 18** + **Vite**
+- **TypeScript**
+- **Tailwind CSS v3** (Custom Brand System)
+- **Recharts** for Analytics
+- **Heroicons** for SVG Iconography
+- **Zustand** for State Management
+- **React Query** for Data Fetching & Caching
 
-- Python 3.11+
-- Node.js 18+
-- OpenAI API key
-
-### Backend Setup
-
-```bash
-cd backend
-
-# Create virtual environment
-python -m venv venv
-venv\Scripts\activate       # Windows
-# source venv/bin/activate  # macOS/Linux
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Configure environment
-copy .env.example .env
-# Edit .env with your OpenAI API key and SMTP settings
-
-# Run the server
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-The API will be available at `http://localhost:8000` with docs at `http://localhost:8000/docs`.
-
-### Frontend Setup
-
-```bash
-cd frontend
-
-# Install dependencies
-npm install
-
-# Start dev server
-npm run dev
-```
-
-The UI will be available at `http://localhost:5173`.
+### Backend
+- **Python 3.10+**
+- **FastAPI** (High-performance API framework)
+- **SQLAlchemy ORM** + **PostgreSQL**
+- **ReportLab** for dynamic, aesthetic PDF Generation
+- **FastAPI-Mail** for asynchronous Email Delivery
 
 ---
 
-## API Endpoints
+## 📂 Project Structure
 
-| Method | Endpoint                        | Description                  | Auth     |
-|--------|---------------------------------|------------------------------|----------|
-| POST   | `/api/v1/auth/register`         | Register new user            | Public   |
-| POST   | `/api/v1/auth/login`            | Login (returns JWT)          | Public   |
-| GET    | `/api/v1/auth/me`               | Current user profile         | Bearer   |
-| GET    | `/api/v1/users/`                | List users                   | CEO/HR/Mgr |
-| GET    | `/api/v1/meetings/`             | List meetings                | Bearer   |
-| POST   | `/api/v1/meetings/`             | Create meeting (manual MOM)  | CEO/HR/Mgr |
-| GET    | `/api/v1/meetings/{id}`         | Get meeting detail           | Bearer   |
-| POST   | `/api/v1/upload/mom`            | Upload & process MOM file    | CEO/HR/Mgr |
-| POST   | `/api/v1/upload/extract-preview`| Preview AI extraction        | CEO/HR/Mgr |
-| GET    | `/api/v1/tasks/`                | List tasks (with filters)    | Bearer   |
-| PUT    | `/api/v1/tasks/{id}`            | Update task status           | Bearer   |
-| GET    | `/api/v1/tasks/{id}/history`    | Task status history          | Bearer   |
-| GET    | `/api/v1/attendance/absentees`  | Frequent absentees           | Bearer   |
-| GET    | `/api/v1/dashboard/`            | Dashboard analytics          | Bearer   |
-| GET    | `/api/v1/notifications/`        | List notifications           | Bearer   |
-
----
-
-## Database Tables
-
-`users` · `meetings` · `attendees` · `agenda_items` · `discussion_summary` · `tasks` · `task_history` · `notifications` · `next_meetings` · `files`
-
----
-
-## LangGraph Workflow
-
-```
-Upload/Manual Input
-       ↓
-  ExtractTextNode    ← Extract text from PDF/TXT
-       ↓
-  CleanTextNode      ← Normalize whitespace, remove artifacts
-       ↓
-  MOMExtractionNode  ← OpenAI GPT-4 structured extraction
-       ↓
-  ValidateDataNode   ← Check required fields
-       ↓
-  [API Layer]        ← Save to DB, create tasks, send notifications
+```text
+📦 MOM_AI_Assistant
+ ┣ 📂 backend
+ ┃ ┣ 📂 app
+ ┃ ┃ ┣ 📂 api               # FastAPI route endpoints
+ ┃ ┃ ┣ 📂 models            # SQLAlchemy database schemas
+ ┃ ┃ ┣ 📂 schemas           # Pydantic validation schemas
+ ┃ ┃ ┣ 📂 services          # Core business logic & Agentic services
+ ┃ ┃ ┣ 📂 notifications     # Email server & PDF Generation logic
+ ┃ ┃ ┣ 📜 main.py           # Application entrypoint
+ ┃ ┃ ┗ 📜 database.py       # DB Connection pooling
+ ┃ ┣ 📜 requirements.txt    # Python dependencies
+ ┃ ┗ 📜 .env                # Environment variables
+ ┣ 📂 frontend
+ ┃ ┣ 📂 src
+ ┃ ┃ ┣ 📂 components        # Reusable UI components (Stats, Drawers, Layout)
+ ┃ ┃ ┣ 📂 pages             # Application views (Dashboard, Meetings, Detail)
+ ┃ ┃ ┣ 📂 store             # Zustand global state (Theme)
+ ┃ ┃ ┣ 📜 App.tsx           # Router configuration
+ ┃ ┃ ┗ 📜 index.css         # Global Tailwind directives & Brand tokens
+ ┃ ┣ 📜 tailwind.config.js  # Deep-customized brand theme
+ ┃ ┣ 📜 vite.config.ts      # Vite bundler config
+ ┃ ┗ 📜 package.json        # Node dependencies
+ ┣ 📜 README.md             # Project Overview
+ ┗ 📜 SETUP.md              # Installation & Deployment instructions
 ```
 
 ---
 
-## Environment Variables
+## ℹ️ Setup & Installation
 
-See `backend/.env.example` for all configuration options including:
-- `OPENAI_API_KEY` – Required for AI extraction
-- `SECRET_KEY` – JWT signing key (change in production!)
-- `SMTP_*` – Email notification settings
-- `TWILIO_*` – WhatsApp integration settings
+Please refer to the [SETUP.md](SETUP.md) file for comprehensive, step-by-step instructions on running Botivate locally and deploying it to production servers.
 
 ---
-
-## License
-
-See [LICENSE](LICENSE) file.
+*Botivate Services LLP © 2026. Powering Businesses On Autopilot.*

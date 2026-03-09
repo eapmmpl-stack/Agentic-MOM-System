@@ -8,24 +8,19 @@ export default {
         sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
       },
       colors: {
-        // Botivate brand blue — matches the royal blue in the logo
-        primary: {
-          50:  '#eff6ff',
-          100: '#dbeafe',
-          200: '#bfdbfe',
-          300: '#93c5fd',
-          400: '#60a5fa',
-          500: '#3b82f6',
-          600: '#1d6bf8',   // core brand blue (logo color)
-          700: '#1558d6',
-          800: '#1447b0',
-          900: '#1e3a8a',
+        // Updated to explicitly match the #399dff from Botivate B PNG.png logo
+        brand: {
+          50:  '#eef7ff',
+          100: '#d9ecff',
+          200: '#bcdeff',
+          300: '#8ecbff',
+          400: '#5ab0ff',
+          500: '#399dff', // Exact logo match #399dff
+          600: '#1b80f5', // slightly darker for hover
+          700: '#1266e1',
+          800: '#1552b6',
+          900: '#16478f',
         },
-      },
-      boxShadow: {
-        'brand-sm': '0 2px 8px rgba(29,107,248,0.15)',
-        'brand':    '0 4px 16px rgba(29,107,248,0.25)',
-        'brand-lg': '0 8px 32px rgba(29,107,248,0.30)',
       },
     },
   },

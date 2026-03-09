@@ -9,8 +9,8 @@ interface Props {
 }
 
 const palette: Record<string, { bg: string; icon: string; text: string; ring: string }> = {
-  blue:   { bg: 'bg-blue-50 dark:bg-blue-500/10',   icon: 'bg-[#1d6bf8] text-white shadow-[0_2px_8px_rgba(29,107,248,0.3)]',   text: 'text-blue-700 dark:text-blue-400',   ring: 'ring-blue-100 dark:ring-blue-500/20'   },
-  indigo: { bg: 'bg-blue-50 dark:bg-blue-500/10',   icon: 'bg-[#1d6bf8] text-white shadow-[0_2px_8px_rgba(29,107,248,0.3)]',   text: 'text-blue-700 dark:text-blue-400',   ring: 'ring-blue-100 dark:ring-blue-500/20'   },
+  blue:   { bg: 'bg-brand-50 dark:bg-brand-900/10',   icon: 'bg-brand-500 text-white shadow-[0_2px_8px_rgba(57,157,255,0.3)]',   text: 'text-brand-600 dark:text-brand-400',   ring: 'ring-brand-100 dark:ring-brand-500/20'   },
+  indigo: { bg: 'bg-brand-50 dark:bg-brand-900/10',   icon: 'bg-brand-500 text-white shadow-[0_2px_8px_rgba(57,157,255,0.3)]',   text: 'text-brand-600 dark:text-brand-400',   ring: 'ring-brand-100 dark:ring-brand-500/20'   },
   green:  { bg: 'bg-emerald-50 dark:bg-emerald-500/10', icon: 'bg-emerald-600 text-white shadow-emerald-200 dark:shadow-emerald-900/50', text: 'text-emerald-700 dark:text-emerald-400', ring: 'ring-emerald-100 dark:ring-emerald-500/20' },
   red:    { bg: 'bg-red-50 dark:bg-red-500/10',     icon: 'bg-red-500 text-white shadow-red-200 dark:shadow-red-900/50',       text: 'text-red-700 dark:text-red-400',     ring: 'ring-red-100 dark:ring-red-500/20'     },
   yellow: { bg: 'bg-amber-50 dark:bg-amber-500/10', icon: 'bg-amber-500 text-white shadow-amber-200 dark:shadow-amber-900/50', text: 'text-amber-700 dark:text-amber-400', ring: 'ring-amber-100 dark:ring-amber-500/20' },

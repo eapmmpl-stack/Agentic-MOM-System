@@ -27,7 +27,7 @@ function Section({ title, icon, children }: { title: string; icon: React.ReactNo
   return (
     <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
       <div className="flex items-center gap-2.5 px-6 py-4 border-b border-slate-100 dark:border-slate-800">
-        <span className="text-indigo-500">{icon}</span>
+        <span className="text-brand-500">{icon}</span>
         <h3 className="text-[14px] font-bold text-slate-800 dark:text-white">{title}</h3>
       </div>
       <div className="p-6">{children}</div>
@@ -76,7 +76,7 @@ export default function MeetingDetailPage() {
   if (isLoading || !meeting) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
-        <div className="w-7 h-7 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-7 h-7 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
         <p className="text-sm text-slate-400">Loading meeting…</p>
       </div>
     );
@@ -97,7 +97,7 @@ export default function MeetingDetailPage() {
 
       {/* ── Top Nav Bar ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <Link to="/meetings" className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 transition-colors">
+        <Link to="/meetings" className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-slate-500 hover:text-brand-600 dark:text-slate-400 dark:hover:text-brand-400 transition-colors">
           <ArrowLeftIcon className="w-4 h-4" /> Back to Meetings
         </Link>
         <div className="flex flex-wrap gap-2">
@@ -115,7 +115,7 @@ export default function MeetingDetailPage() {
           </Link>
           <button
             onClick={handleDownloadPDF}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-bold rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 shadow-md shadow-indigo-200 dark:shadow-indigo-900/40 transition-all active:scale-[0.98]"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-bold rounded-xl bg-brand-600 text-white hover:bg-brand-700 shadow-md shadow-brand-200 dark:shadow-brand-900/40 transition-all active:scale-[0.98]"
           >
             <ArrowDownTrayIcon className="w-4 h-4" /> Download MOM PDF
           </button>
@@ -124,15 +124,15 @@ export default function MeetingDetailPage() {
 
       {/* ── Hero Header ── */}
       <div className="relative rounded-2xl overflow-hidden shadow-sm">
-        <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 to-purple-700" />
+        <div className="absolute inset-0 bg-gradient-to-br from-brand-600 to-purple-700" />
         <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 80% 20%, white 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
         <div className="relative z-10 p-6 text-white">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-indigo-200 mb-1">Meeting Details</p>
+          <p className="text-[11px] font-bold uppercase tracking-widest text-brand-200 mb-1">Meeting Details</p>
           <h2 className="text-2xl font-extrabold mb-4">{meeting.title}</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {metaItems.filter(i => i.value).map((item, idx) => (
               <div key={idx} className="bg-white/10 rounded-xl px-3.5 py-3 backdrop-blur-sm">
-                <div className="flex items-center gap-1.5 text-indigo-200 mb-1">
+                <div className="flex items-center gap-1.5 text-brand-200 mb-1">
                   {item.icon}
                   <p className="text-[10px] font-bold uppercase tracking-wide">{item.label}</p>
                 </div>
@@ -153,7 +153,7 @@ export default function MeetingDetailPage() {
               const present = String(a.attendance_status).toLowerCase().includes('present');
               return (
                 <div key={a.id} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-slate-800">
-                  <div className="w-9 h-9 rounded-full bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center text-indigo-700 dark:text-indigo-400 text-[13px] font-bold shrink-0">
+                  <div className="w-9 h-9 rounded-full bg-brand-100 dark:bg-brand-500/20 flex items-center justify-center text-brand-700 dark:text-brand-400 text-[13px] font-bold shrink-0">
                     {a.user_name.charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0 flex-1">
@@ -178,7 +178,7 @@ export default function MeetingDetailPage() {
           <div className="space-y-2.5">
             {meeting.agenda_items.map((a, i) => (
               <div key={a.id} className="flex gap-3.5 p-3.5 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-slate-800">
-                <span className="w-6 h-6 rounded-full bg-indigo-600 text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
+                <span className="w-6 h-6 rounded-full bg-brand-600 text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
                 <div>
                   <p className="text-[13px] font-semibold text-slate-800 dark:text-white">{a.topic}</p>
                   {a.description && <p className="text-[12px] text-slate-500 dark:text-slate-400 mt-0.5">{a.description}</p>}
@@ -215,7 +215,7 @@ export default function MeetingDetailPage() {
                 <select
                   value={t.status}
                   onChange={(e) => handleStatusChange(t.id, e.target.value)}
-                  className={`text-[12px] font-bold px-3 py-1.5 rounded-lg border cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-400 shrink-0 ${statusColors[t.status] ?? statusColors['Pending']}`}
+                  className={`text-[12px] font-bold px-3 py-1.5 rounded-lg border cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-400 shrink-0 ${statusColors[t.status] ?? statusColors['Pending']}`}
                 >
                   <option value="Pending">Pending</option>
                   <option value="In Progress">In Progress</option>
@@ -231,8 +231,8 @@ export default function MeetingDetailPage() {
       {meeting.next_meeting && (
         <Section title="Next Meeting" icon={<CalendarDaysIcon className="w-[18px] h-[18px]" />}>
           <div className="flex items-center gap-6 text-[13px] text-slate-700 dark:text-slate-300">
-            <span className="flex items-center gap-2"><CalendarDaysIcon className="w-4 h-4 text-indigo-500" />{meeting.next_meeting.next_date || 'TBD'}</span>
-            <span className="flex items-center gap-2"><ClockIcon className="w-4 h-4 text-indigo-500" />{meeting.next_meeting.next_time || 'TBD'}</span>
+            <span className="flex items-center gap-2"><CalendarDaysIcon className="w-4 h-4 text-brand-500" />{meeting.next_meeting.next_date || 'TBD'}</span>
+            <span className="flex items-center gap-2"><ClockIcon className="w-4 h-4 text-brand-500" />{meeting.next_meeting.next_time || 'TBD'}</span>
           </div>
         </Section>
       )}

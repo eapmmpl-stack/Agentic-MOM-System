@@ -16,58 +16,59 @@ const navItems = [
 export default function Layout({ children }: { children: React.ReactNode }) {
   const location  = useLocation();
   const { dark, toggle } = useThemeStore();
-  const pageLabel = navItems.find((n) => n.path === location.pathname)?.label ?? 'Botivate';
+  const pageLabel = navItems.find((n) => n.path === location.pathname)?.label ?? 'Dashboard';
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-[#0d1117]">
 
       {/* ════════════════════ SIDEBAR ════════════════════ */}
-      <aside className="hidden md:flex md:flex-col w-[220px] bg-white dark:bg-[#161b27] border-r border-slate-100 dark:border-slate-800">
+      <aside className="hidden md:flex md:flex-col w-[260px] bg-white dark:bg-[#161b27] border-r border-slate-100 dark:border-slate-800">
 
-        {/* Brand — logo only, no duplicate text */}
-        <div className="flex items-center gap-3 px-5 py-[18px] border-b border-slate-100 dark:border-slate-800">
-          <img src="/botivate-logo.png" alt="Botivate" className="w-9 h-9 object-contain" />
-          <div className="leading-tight">
-            <p className="text-[14px] font-extrabold text-slate-900 dark:text-white tracking-tight">Botivate</p>
-            <p className="text-[10px] font-medium text-[#1d6bf8]">MOM Management</p>
+        {/* Sidebar Header / Brand area */}
+        <div className="flex items-center gap-3.5 px-6 py-6 border-b border-slate-100 dark:border-slate-800">
+          {/* Logo - Properly sized */}
+          <img src="/botivate-logo-cropped.png" alt="Botivate Logo" className="w-[38px] h-[38px] object-contain drop-shadow-sm shrink-0" />
+          <div className="leading-tight mt-0.5">
+            <h1 className="text-[20px] font-black text-slate-800 dark:text-white tracking-tight -mb-1">Botivate</h1>
+            <p className="text-[9px] font-bold text-brand-500 uppercase tracking-widest mt-1">Agentic Minutes of Meeting</p>
           </div>
         </div>
 
-        {/* Nav */}
-        <nav className="flex-1 px-3 py-4 space-y-0.5">
-          <p className="px-2 pb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-600">Menu</p>
+        {/* Nav Links */}
+        <nav className="flex-1 px-4 py-6 space-y-1">
+          <p className="px-3 pb-3 text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Menu</p>
           {navItems.map(({ path, label, icon: Icon }) => {
             const active = location.pathname === path;
             return (
               <Link
                 key={path}
                 to={path}
-                className={`group flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-semibold transition-all ${
+                className={`group flex items-center gap-3 px-3.5 py-3 rounded-xl text-[14px] font-semibold transition-all duration-200 ${
                   active
-                    ? 'bg-blue-50 dark:bg-blue-500/10 text-[#1d6bf8]'
+                    ? 'bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400 shadow-sm shadow-brand-100/50 dark:shadow-none'
                     : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-slate-800 dark:hover:text-white'
                 }`}
               >
-                <span className={`w-7 h-7 flex items-center justify-center rounded-lg transition-all ${
+                <div className={`w-8 h-8 flex items-center justify-center rounded-xl transition-all duration-200 ${
                   active
-                    ? 'bg-[#1d6bf8] text-white shadow-[0_2px_8px_rgba(29,107,248,0.3)]'
-                    : 'bg-slate-100 dark:bg-white/5 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-white'
+                    ? 'bg-brand-500 text-white shadow-md shadow-brand-200 dark:shadow-brand-900/50 scale-110'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-400 group-hover:bg-slate-200 dark:group-hover:bg-slate-700 group-hover:text-slate-600 dark:group-hover:text-slate-300'
                 }`}>
-                  <Icon className="w-[15px] h-[15px]" />
-                </span>
+                  <Icon className="w-4 h-4" />
+                </div>
                 {label}
               </Link>
             );
           })}
         </nav>
 
-        {/* Powered by footer */}
-        <div className="px-4 pb-5">
-          <div className="rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 px-4 py-3 flex items-center gap-2.5">
-            <img src="/botivate-logo.png" alt="" className="w-6 h-6 object-contain shrink-0" />
-            <div>
-              <p className="text-[9px] text-slate-400 font-medium uppercase tracking-wide">Powered by</p>
-              <p className="text-[11px] font-bold text-[#1d6bf8] leading-tight">Botivate Services LLP</p>
+        {/* Powered by Footer in Sidebar */}
+        <div className="p-5 border-t border-slate-100 dark:border-slate-800 mt-auto bg-slate-50/50 dark:bg-[#121622]/50">
+          <div className="flex items-center gap-3.5">
+            <img src="/botivate-logo-cropped.png" alt="Logo" className="w-[32px] h-[32px] object-contain drop-shadow-sm shrink-0" />
+            <div className="overflow-hidden flex flex-col justify-center">
+              <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mb-0.5">Powered by</p>
+              <p className="text-[13px] font-extrabold text-slate-800 dark:text-white leading-none truncate">Botivate Services</p>
             </div>
           </div>
         </div>
@@ -76,46 +77,41 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* ════════════════════ MAIN AREA ════════════════════ */}
       <div className="flex-1 flex flex-col overflow-hidden">
 
-        {/* ── HEADER — proper, prominent, single Botivate logo ── */}
-        <header className="h-[64px] flex items-center justify-between px-6 bg-white dark:bg-[#161b27] border-b border-slate-100 dark:border-slate-800 shadow-sm">
-
-          {/* Left: page breadcrumb */}
+        {/* ── HEADER — Very Clean, No Double Logo ── */}
+        <header className="h-[72px] flex items-center justify-between px-8 bg-white dark:bg-[#161b27] border-b border-slate-100 dark:border-slate-800 shadow-sm shrink-0 z-10">
+          
+          {/* Left: Dynamic Page Title */}
           <div>
-            <h1 className="text-[16px] font-extrabold text-slate-900 dark:text-white leading-tight">{pageLabel}</h1>
-            <p className="text-[11px] text-slate-400 leading-tight -mt-0.5">Botivate MOM Management System</p>
+            <h2 className="text-[20px] font-extrabold text-slate-800 dark:text-white leading-tight">{pageLabel}</h2>
+            <p className="text-[12px] text-slate-500 dark:text-slate-400 mt-0.5">Welcome back to Botivate.</p>
           </div>
 
-          {/* Right: controls + ONE logo area */}
-          <div className="flex items-center gap-4">
-
-            {/* Icon buttons */}
-            <div className="flex items-center gap-1">
-              <button onClick={toggle}
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/5 dark:hover:text-white transition-all">
-                {dark ? <SunIcon className="w-[17px] h-[17px]" /> : <MoonIcon className="w-[17px] h-[17px]" />}
-              </button>
-              <Link to="/notifications"
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/5 dark:hover:text-white transition-all">
-                <BellIcon className="w-[17px] h-[17px]" />
-              </Link>
-            </div>
-
-            {/* Divider */}
-            <div className="w-px h-7 bg-slate-200 dark:bg-slate-700" />
-
-            {/* Company brand — logo + name, no double "Botivate" text */}
-            <div className="flex items-center gap-3 bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-slate-800 rounded-xl px-3.5 py-2">
-              <img src="/botivate-logo.png" alt="Botivate" className="h-9 w-auto object-contain" />
-              <div className="leading-tight">
-                <p className="text-[13px] font-extrabold text-slate-900 dark:text-white">Botivate Services LLP</p>
-                <p className="text-[10px] text-[#1d6bf8] font-semibold">Powering Businesses On Autopilot</p>
-              </div>
-            </div>
+          {/* Right: Actions */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={toggle}
+              className="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-50 dark:bg-white/5 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10 hover:text-slate-800 dark:hover:text-white transition-all border border-slate-100 dark:border-slate-800"
+              aria-label="Toggle theme"
+            >
+              {dark ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
+            </button>
+            
+            <Link
+              to="/notifications"
+              className="relative w-10 h-10 flex items-center justify-center rounded-xl bg-slate-50 dark:bg-white/5 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10 hover:text-slate-800 dark:hover:text-white transition-all border border-slate-100 dark:border-slate-800"
+            >
+              <BellIcon className="w-5 h-5" />
+              <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 border-2 border-slate-50 dark:border-white/5 rounded-full" />
+            </Link>
           </div>
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto p-8 relative">
+          <div className="max-w-[1400px] mx-auto">
+            {children}
+          </div>
+        </main>
       </div>
     </div>
   );
