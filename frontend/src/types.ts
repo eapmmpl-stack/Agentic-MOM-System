@@ -3,7 +3,7 @@
 export type UserRole = 'CEO' | 'Manager' | 'HR' | 'Employee';
 export type TaskStatus = 'Pending' | 'In Progress' | 'Completed';
 export type AttendanceStatus = 'Present' | 'Absent' | 'Excused';
-export type MeetingStatus = 'Scheduled' | 'Rescheduled' | 'Cancelled' | 'Completed';
+export type MeetingStatus = 'Scheduled' | 'Rescheduled' | 'Cancelled' | 'Completed' | 'Processing';
 
 export interface User {
   id: number;
@@ -195,6 +195,7 @@ export interface MeetingFormData {
 export interface AttendeeStatusUpdate {
   id: number;
   attendance_status: AttendanceStatus;
+  remarks?: string;
 }
 
 export interface MeetingMOMUpdatePayload {

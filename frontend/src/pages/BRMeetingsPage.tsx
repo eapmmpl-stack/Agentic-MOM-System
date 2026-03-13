@@ -37,7 +37,7 @@ export default function BRMeetingsPage() {
         }
     };
 
-    const upcomingMeetings = meetings.filter(m => m.status === 'Scheduled' || m.status === 'Rescheduled');
+    const upcomingMeetings = meetings.filter(m => m.status === 'Scheduled' || m.status === 'Rescheduled' || m.status === 'Processing');
     const passedMeetings = meetings.filter(m => m.status === 'Completed');
     const cancelledMeetings = meetings.filter(m => m.status === 'Cancelled');
 
@@ -48,6 +48,7 @@ export default function BRMeetingsPage() {
     const getStatusColor = (status: string) => {
         switch (status) {
             case 'Completed': return 'text-green-600 bg-green-50 dark:bg-green-500/10 dark:text-green-400 border-green-100 dark:border-green-500/20';
+            case 'Processing': return 'text-brand-600 bg-brand-50 dark:bg-brand-500/10 dark:text-brand-400 border-brand-100 dark:border-brand-500/20 animate-pulse';
             case 'Rescheduled': return 'text-amber-600 bg-amber-50 dark:bg-amber-500/10 dark:text-amber-400 border-amber-100 dark:border-amber-500/20';
             case 'Cancelled': return 'text-red-600 bg-red-50 dark:bg-red-500/10 dark:text-red-400 border-red-100 dark:border-red-500/20';
             default: return 'text-brand-600 bg-brand-50 dark:bg-brand-500/10 dark:text-brand-400 border-brand-100 dark:border-brand-500/20';

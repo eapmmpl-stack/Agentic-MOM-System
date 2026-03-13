@@ -8,7 +8,7 @@ from app.services.google_sheets_service import upload_to_drive, SheetsDB, ensure
 from app.services.br_meeting_service import BRService
 from app.services.meeting_service import MeetingService
 from app.notifications.notification_service import NotificationService
-from app.utils.pdf_generator import generate_any_pdf
+from app.utils.pdf_generator import generate_any_pdf, generate_transcript_pdf, generate_audit_log_pdf, generate_summary_pdf
 from app.config import get_settings
 
 router = APIRouter()
@@ -96,53 +96,47 @@ async def run_ai_pipeline(mid, mtype, path, title, mdate, mtime, folder_id, pare
         # 3. Prepare 4 separate PDF files for Drive
         logger.info(f"[STAGE 3/6] Packaging Intelligence Assets (4 PDFs)...")
         
-        # PDF 1: Full Verbatim Transcript
+        # PDF 1: Full Verbatim Transcript (🎤 Monospace Line-Numbered Layout)
         transcript_filename = f"Transcript_{title}_{mdate}.pdf"
-        transcript_pdf = generate_any_pdf(f"Verbatim Transcript: {title}", f"Date: {mdate}", transcript_text)
+        transcript_pdf = generate_transcript_pdf(title, mdate, transcript_text)
 
-        # PDF 2: AI Auditing Logs (Chunks)
+        # PDF 2: AI Auditing Logs (🔍 Segmented Process Trail)
         chunks_filename = f"AI_Auditing_Logs_{title}_{mdate}.pdf"
-        audit_logs_text = ""
-        for i, c_sum in enumerate(ai_results['chunk_summaries']):
-            audit_logs_text += f"-- SEGMENT {i+1} --\n{c_sum}\n\n"
-        chunks_pdf = generate_any_pdf(f"AI Auditing Logs: {title}", f"Meeting Date: {mdate}", audit_logs_text)
+        chunks_pdf = generate_audit_log_pdf(title, mdate, ai_results['chunk_summaries'])
 
-        # PDF 3: Professional MOM Report
+        # PDF 3: Professional MOM Report (📋 Standard Botivate Branded)
         mom_filename = f"MOM_Professional_Report_{title}_{mdate}.pdf"
         mom_pdf = generate_any_pdf(f"Minutes of Meeting: {title}", f"Date: {mdate} | Time: {mtime}", ai_results['final_summary'])
 
-        # PDF 4: Final Formatted Summary Report
+        # PDF 4: Executive Summary Briefing (📊 Green-Accented Narrative)
         formatted_filename = f"Final_Formatted_Summary_{title}_{mdate}.pdf"
-        formatted_pdf = generate_any_pdf(f"Final Formatted Summary: {title}", f"Date: {mdate}", ai_results['formatted_summary'])
+        formatted_pdf = generate_summary_pdf(title, mdate, ai_results['formatted_summary'])
         
         # 4. Upload all 4 PDFs to Drive
-        logger.info(f"[STAGE 4/6] Uploading 4 PDFs to Google Drive...")
+        logger.info(f"[STAGE 4/6] Uploading 4 PDFs directly to meeting folder...")
         root_folder_id = ensure_subfolder(parent_root, parent_id="0AAgyfuup7OPSUk9PVA")
         
         if not folder_id:
             folder_name = f"{mid} - {title} - {mdate} {mtime}"
             folder_id = ensure_subfolder(folder_name, parent_id=root_folder_id)
 
-        # Intelligence Reports subfolder
-        reports_folder_id = ensure_subfolder("Intelligence Reports", parent_id=folder_id)
-        
-        # Uploads
-        res_t = upload_to_drive(transcript_pdf, transcript_filename, "application/pdf", reports_folder_id)
-        res_a = upload_to_drive(chunks_pdf, chunks_filename, "application/pdf", reports_folder_id)
-        res_f = upload_to_drive(formatted_pdf, formatted_filename, "application/pdf", reports_folder_id)
+        # Uploads directly to folder_id (Removing Intelligence Reports subfolder)
+        res_t = upload_to_drive(transcript_pdf, transcript_filename, "application/pdf", folder_id)
+        res_a = upload_to_drive(chunks_pdf, chunks_filename, "application/pdf", folder_id)
+        res_f = upload_to_drive(formatted_pdf, formatted_filename, "application/pdf", folder_id)
         
         transcript_link = res_t.get("webViewLink")
         logs_link = res_a.get("webViewLink")
         formatted_link = res_f.get("webViewLink")
         
         # Main professional report is the one linked to UI
-        drive_res = upload_to_drive(mom_pdf, mom_filename, "application/pdf", reports_folder_id)
+        drive_res = upload_to_drive(mom_pdf, mom_filename, "application/pdf", folder_id)
         report_link = drive_res.get("webViewLink")
         
         logger.info(f"[STAGE 4/6] 4 PDFs Uploaded. Primary Report: {report_link}")
         
-        # 5. Update Sheet with all 4 Asset Links and mark as Completed
-        logger.info(f"[STAGE 5/6] Syncing all 4 intelligence links and marking as Completed...")
+        # 5. Update Sheet with all 4 Asset Links (Keep as Processing, NOT Completed)
+        logger.info(f"[STAGE 5/6] Syncing all 4 intelligence links and marking as Processing...")
         update_data = {
             "recording_link": report_link,         # Professional MOM PDF
             "ai_summary_link": formatted_link,     # Formatted Narrative Summary PDF
@@ -150,22 +144,21 @@ async def run_ai_pipeline(mid, mtype, path, title, mdate, mtime, folder_id, pare
             "drive_logs_link": logs_link,          # AI Audit Logs PDF
             "drive_recording_id": drive_res.get("id"),
             "drive_folder_id": folder_id,
-            "status": "Completed"                  # <--- PROMOTE TO COMPLETED
+            "status": "Processing"                 # <--- STAY IN PROCESSING UNTIL ADMIN SAVES MOM
         }
         if mtype == "BR":
             SheetsDB.update_row("BR_Meetings", mid, update_data)
         else:
             SheetsDB.update_row("Meetings", mid, update_data)
 
-        # 6. Populate Discussion Summary & Notify Attendees
-        logger.info(f"[STAGE 6/6] Syncing intelligence assets and notifying attendees...")
+        # Stage 6: Populate Discussion Summary
+        logger.info(f"[STAGE 6/6] Syncing intelligence assets...")
         
         # Dashboard Autofill: Use the point-wise brief summary
         discussion_update = {"summary_text": ai_results['brief_summary']}
         if mtype == "BR":
             existing = SheetsDB.get_by_field("BR_Discussions", "meeting_id", mid)
             if existing: 
-                # int() is used here for row ID update
                 SheetsDB.update_row("BR_Discussions", int(existing[0]['id']), discussion_update)
             else: 
                 SheetsDB.append_row("BR_Discussions", {"meeting_id": mid, "summary_text": ai_results['brief_summary']})
@@ -175,39 +168,6 @@ async def run_ai_pipeline(mid, mtype, path, title, mdate, mtime, folder_id, pare
                 SheetsDB.update_row("Discussions", int(existing[0]['id']), discussion_update)
             else: 
                 SheetsDB.append_row("Discussions", {"meeting_id": mid, "summary_text": ai_results['brief_summary']})
-
-        # Multi-Asset Email Delivery: Send MOM + Formatted Summary to all attendees
-        meeting_data = await BRService.get_br(None, mid) if mtype == "BR" else await MeetingService.get_meeting(None, mid)
-        
-        if meeting_data and meeting_data.attendees:
-            # Prepare task list for email
-            task_html = ""
-            if meeting_data.tasks:
-                task_html = "<table border='1' style='border-collapse:collapse;width:100%;margin:16px 0;'><tr style='background:#f0f4f8;'><th style='padding:10px;'>Task</th><th style='padding:10px;'>Owner</th><th style='padding:10px;'>Deadline</th></tr>"
-                for t in meeting_data.tasks:
-                    deadline_str = str(t.deadline) if t.deadline else "N/A"
-                    task_html += f"<tr><td style='padding:10px;'>{t.title}</td><td style='padding:10px;'>{t.responsible_person or 'None'}</td><td style='padding:10px;'>{deadline_str}</td></tr>"
-                task_html += "</table>"
-            else:
-                task_html = "<p>No new tasks assigned.</p>"
-
-            for attendee in meeting_data.attendees:
-                if attendee.email:
-                    is_absent = (str(attendee.attendance_status).strip() != "Present")
-                    # Send Email: Includes Professional MOM + Formatted Narrative Summary
-                    email_summary_body = (
-                        f"--- FINAL FORMATTED SUMMARY REPORT ---\n{ai_results['formatted_summary']}\n\n"
-                        f"--- PROFESSIONAL MOM REPORT ---\n{ai_results['final_summary']}"
-                    )
-                    
-                    await NotificationService.notify_meeting_summary(
-                        None, email=attendee.email, user_name=attendee.user_name,
-                        meeting_title=title, is_absent=is_absent,
-                        summary=email_summary_body, 
-                        task_html=task_html, 
-                        remarks=getattr(attendee, "remarks", None),
-                        is_br=(mtype == "BR")
-                    )
 
         logger.info(f"✨ AI PIPELINE FULLY COMPLETED FOR '{title}' (ID: {mid})")
         

@@ -30,6 +30,7 @@ export default function LogMOMPage() {
         attendees: meeting.attendees.map(a => ({
           id: a.id,
           attendance_status: a.attendance_status || 'Present',
+          remarks: a.remarks || '',
         })),
         discussion_summary: meeting.discussion?.summary_text || '',
         tasks: meeting.tasks.map(t => ({
@@ -55,10 +56,10 @@ export default function LogMOMPage() {
 
   const updateField = (field: string, value: any) => setForm((p) => ({ ...p, [field]: value }));
 
-  const updateAttendee = (i: number, status: string) =>
+  const updateAttendee = (i: number, field: 'attendance_status' | 'remarks', value: string) =>
     setForm((p) => ({
       ...p,
-      attendees: p.attendees.map((a, idx) => (idx === i ? { ...a, attendance_status: status as AttendanceStatus } : a)),
+      attendees: p.attendees.map((a, idx) => (idx === i ? { ...a, [field]: value } : a)),
     }));
 
   const addTask = () =>
@@ -136,11 +137,19 @@ export default function LogMOMPage() {
                 <span className="font-medium text-gray-900 dark:text-white">{a.user_name}</span>
                 {a.email && <span className="ml-2 text-sm text-gray-500">({a.email})</span>}
               </div>
-              <select value={form.attendees[i]?.attendance_status || 'Present'} onChange={(e) => updateAttendee(i, e.target.value)} className={inputClass}>
-                <option value="Present">Present</option>
-                <option value="Absent">Absent</option>
-                <option value="Excused">Excused</option>
-              </select>
+              <div className="flex gap-2">
+                <select value={form.attendees[i]?.attendance_status || 'Present'} onChange={(e) => updateAttendee(i, 'attendance_status', e.target.value)} className={inputClass}>
+                  <option value="Present">Present</option>
+                  <option value="Absent">Absent</option>
+                  <option value="Excused">Excused</option>
+                </select>
+                <input 
+                  placeholder="Personal Remark" 
+                  value={form.attendees[i]?.remarks || ''} 
+                  onChange={(e) => updateAttendee(i, 'remarks', e.target.value)} 
+                  className={inputClass} 
+                />
+              </div>
             </div>
           ))}
         </section>

@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -14,24 +15,30 @@ import {
   CheckCircleIcon,
   MicrophoneIcon,
   DocumentIcon,
+  PlusIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline';
 import RecordingOverlay from '../components/RecordingOverlay';
 import toast from 'react-hot-toast';
 import api from '../api';
-import type { Meeting } from '../types';
+import type { Meeting, Task } from '../types';
 
 const statusColors: Record<string, string> = {
   Completed: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20',
+  Processing: 'bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-400 border-brand-200 dark:border-brand-500/20 animate-pulse',
   'In Progress': 'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-500/20',
   Pending: 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/20',
 };
 
-function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
+function Section({ title, icon, children, action }: { title: string; icon: React.ReactNode; children: React.ReactNode; action?: React.ReactNode }) {
   return (
     <div className="bg-white dark:bg-[#161b27] rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
-      <div className="flex items-center gap-2.5 px-6 py-4 border-b border-slate-100 dark:border-slate-800">
-        <span className="text-brand-500">{icon}</span>
-        <h3 className="text-[14px] font-bold text-slate-800 dark:text-white">{title}</h3>
+      <div className="flex items-center justify-between gap-2.5 px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex items-center gap-2.5">
+          <span className="text-brand-500">{icon}</span>
+          <h3 className="text-[14px] font-bold text-slate-800 dark:text-white">{title}</h3>
+        </div>
+        {action && <div>{action}</div>}
       </div>
       <div className="p-6">{children}</div>
     </div>
@@ -43,6 +50,14 @@ export default function MeetingDetailPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
+  // ── Editable State ─────────────────────────────────
+  const [editingDiscussion, setEditingDiscussion] = useState(false);
+  const [discussionText, setDiscussionText] = useState('');
+  const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
+  const [taskEditData, setTaskEditData] = useState<{ title: string; description: string; responsible_person: string; deadline: string; status: string }>({ title: '', description: '', responsible_person: '', deadline: '', status: 'Pending' });
+  const [showAddTask, setShowAddTask] = useState(false);
+  const [newTask, setNewTask] = useState({ title: '', description: '', responsible_person: '', responsible_email: '', deadline: '', status: 'Pending' });
+
   const handleDownloadPDF = () => {
     if (!id) return;
     window.open(`${window.location.origin}/api/v1/meetings/${id}/pdf`, '_blank');
@@ -52,6 +67,12 @@ export default function MeetingDetailPage() {
     queryKey: ['meeting', id],
     queryFn: async () => (await api.get(`/meetings/${id}`)).data,
   });
+
+  useEffect(() => {
+    if (meeting?.discussion) {
+      setDiscussionText(meeting.discussion.summary_text || '');
+    }
+  }, [meeting]);
 
   const fetchMeeting = () => {
     queryClient.invalidateQueries({ queryKey: ['meeting', id] });
@@ -99,6 +120,7 @@ export default function MeetingDetailPage() {
     }
   };
 
+  // ── Task Operations ────────────────────────────────
   const handleStatusChange = async (taskId: number, newStatus: string) => {
     try {
       await api.put(`/tasks/${taskId}`, { status: newStatus });
@@ -108,6 +130,79 @@ export default function MeetingDetailPage() {
       toast.error('Failed to update task status');
     }
   };
+
+  const handleStartEdit = (task: Task) => {
+    setEditingTaskId(task.id);
+    setTaskEditData({
+      title: task.title,
+      description: task.description || '',
+      responsible_person: task.responsible_person || '',
+      deadline: task.deadline || '',
+      status: task.status,
+    });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingTaskId) return;
+    try {
+      await api.put(`/tasks/${editingTaskId}`, taskEditData);
+      toast.success('Task updated');
+      setEditingTaskId(null);
+      queryClient.invalidateQueries({ queryKey: ['meeting', id] });
+    } catch {
+      toast.error('Failed to update task');
+    }
+  };
+
+  const handleDeleteTask = async (taskId: number) => {
+    if (!window.confirm('Delete this task?')) return;
+    try {
+      await api.delete(`/tasks/${taskId}`);
+      toast.success('Task deleted');
+      queryClient.invalidateQueries({ queryKey: ['meeting', id] });
+    } catch {
+      toast.error('Failed to delete task');
+    }
+  };
+
+  const handleAddTask = async () => {
+    try {
+      await api.post(`/tasks/${id}`, {
+        title: newTask.title,
+        description: newTask.description || null,
+        responsible_person: newTask.responsible_person || null,
+        responsible_email: newTask.responsible_email || null,
+        deadline: newTask.deadline || null,
+        status: newTask.status,
+      });
+      toast.success('Task added');
+      setShowAddTask(false);
+      setNewTask({ title: '', description: '', responsible_person: '', responsible_email: '', deadline: '', status: 'Pending' });
+      queryClient.invalidateQueries({ queryKey: ['meeting', id] });
+    } catch {
+      toast.error('Failed to add task');
+    }
+  };
+
+  // ── Discussion Save ────────────────────────────────
+  const handleSaveDiscussion = async () => {
+    try {
+      await api.post(`/meetings/${id}/mom`, {
+        attendees: meeting!.attendees.map(a => ({ id: a.id, attendance_status: a.attendance_status })),
+        discussion_summary: discussionText,
+        tasks: meeting!.tasks.map(t => ({
+          title: t.title, description: t.description, responsible_person: t.responsible_person,
+          responsible_email: t.responsible_email, deadline: t.deadline, status: t.status,
+        })),
+      });
+      toast.success('Discussion summary updated');
+      setEditingDiscussion(false);
+      queryClient.invalidateQueries({ queryKey: ['meeting', id] });
+    } catch {
+      toast.error('Failed to update discussion');
+    }
+  };
+
 
   if (isLoading || !meeting) {
     return (
@@ -129,7 +224,8 @@ export default function MeetingDetailPage() {
     { icon: <CheckCircleIcon className="w-4 h-4" />, label: 'Status', value: meeting.status },
   ];
 
-  const canAction = meeting.status === 'Scheduled' || meeting.status === 'Rescheduled';
+  const canAction = meeting.status === 'Scheduled' || meeting.status === 'Rescheduled' || meeting.status === 'Processing';
+  const inputClass = 'w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all';
 
   return (
     <div className="space-y-5 max-w-4xl mx-auto">
@@ -210,7 +306,7 @@ export default function MeetingDetailPage() {
         </div>
       </div>
 
-      {/* ── Next Meeting (Moved to top according to request) ── */}
+      {/* ── Next Meeting ── */}
       {meeting.next_meeting && (meeting.next_meeting.next_date || meeting.next_meeting.next_time) && (
         <Section title="Next Meeting Schedule" icon={<CalendarDaysIcon className="w-[18px] h-[18px]" />}>
           <div className="flex flex-col sm:flex-row gap-4 p-4 rounded-xl bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/20">
@@ -224,7 +320,7 @@ export default function MeetingDetailPage() {
         </Section>
       )}
 
-      {/* ── Meeting Intelligence Archive (4-Asset Architecture) ── */}
+      {/* ── Meeting Intelligence Archive ── */}
       {(meeting.recording_link || meeting.ai_summary_link || meeting.drive_transcript_id || meeting.drive_logs_link) && (
         <Section title="Meeting Intelligence Archive" icon={<MicrophoneIcon className="w-[18px] h-[18px]" />}>
           <div className="p-5 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10">
@@ -234,18 +330,13 @@ export default function MeetingDetailPage() {
                   <p className="text-sm font-bold text-slate-900 dark:text-white">Central Intelligence Repository</p>
                   <p className="text-[11px] font-medium text-slate-500 uppercase tracking-tight">4-Asset Cloud Evidence Architecture</p>
                 </div>
-                
-                {/* Audio Player (if present) - Usually local temporary link or legacy */}
                 {meeting.recording_link && (meeting.recording_link.endsWith('.webm') || meeting.recording_link.endsWith('.mp3')) && (
                     <audio controls className="h-9 w-full max-w-xs">
                       <source src={meeting.recording_link} type="audio/webm" />
                     </audio>
                 )}
               </div>
-
-              {/* Multi-Asset Links Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
-                {/* 1. Professional MOM */}
                 {meeting.recording_link && !meeting.recording_link.endsWith('.webm') && (
                   <a href={meeting.recording_link} target="_blank" rel="noreferrer" 
                      className="flex items-center gap-3 p-3.5 bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl hover:border-brand-400 dark:hover:border-brand-500 transition-all group">
@@ -256,44 +347,37 @@ export default function MeetingDetailPage() {
                     </div>
                   </a>
                 )}
-
-                {/* 2. Narrative Formatted Summary */}
                 {meeting.ai_summary_link && (
                   <a href={meeting.ai_summary_link} target="_blank" rel="noreferrer" 
                      className="flex items-center gap-3 p-3.5 bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl hover:border-emerald-400 dark:hover:border-emerald-500 transition-all group">
                     <ClipboardDocumentListIcon className="w-5 h-5 text-emerald-500" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-[12px] font-bold text-slate-800 dark:text-white">Narrative Summary</p>
-                      <p className="text-[10px] text-slate-500 group-hover:text-emerald-500">Concise Discussion Context</p>
+                      <p className="text-[12px] font-bold text-slate-800 dark:text-white">Executive Summary</p>
+                      <p className="text-[10px] text-slate-500 group-hover:text-emerald-500">AI-Synthesized Briefing</p>
                     </div>
                   </a>
                 )}
-
-                {/* 3. Full Transcript */}
                 {meeting.drive_transcript_id && (
                   <a href={meeting.drive_transcript_id} target="_blank" rel="noreferrer" 
                      className="flex items-center gap-3 p-3.5 bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl hover:border-blue-400 dark:hover:border-blue-500 transition-all group">
                     <span className="text-[18px] text-blue-500">🎤</span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[12px] font-bold text-slate-800 dark:text-white">Full Verbatim Transcript</p>
-                      <p className="text-[10px] text-slate-500 group-hover:text-blue-500">Complete Speech-to-Text</p>
+                      <p className="text-[12px] font-bold text-slate-800 dark:text-white">Verbatim Transcript</p>
+                      <p className="text-[10px] text-slate-500 group-hover:text-blue-500">Line-Numbered Speech Record</p>
                     </div>
                   </a>
                 )}
-
-                {/* 4. AI Auditing Logs */}
                 {meeting.drive_logs_link && (
                   <a href={meeting.drive_logs_link} target="_blank" rel="noreferrer" 
                      className="flex items-center gap-3 p-3.5 bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl hover:border-orange-400 dark:hover:border-orange-500 transition-all group">
                     <ClipboardDocumentListIcon className="w-5 h-5 text-orange-500" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-[12px] font-bold text-slate-800 dark:text-white">AI Auditing Logs</p>
-                      <p className="text-[10px] text-slate-500 group-hover:text-orange-500">Step-by-Step Chunk Logic</p>
+                      <p className="text-[12px] font-bold text-slate-800 dark:text-white">AI Audit Trail</p>
+                      <p className="text-[10px] text-slate-500 group-hover:text-orange-500">Segment-by-Segment Process Log</p>
                     </div>
                   </a>
                 )}
               </div>
-
               <div className="pt-4 border-t border-slate-200 dark:border-white/10 flex items-center justify-between">
                  <div className="flex items-center gap-2 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -306,7 +390,7 @@ export default function MeetingDetailPage() {
       )}
 
       {/* ── Attendees ── */}
-      <Section title="Attendees" icon={<UserIcon className="w-4.5 h-4.5 w-[18px] h-[18px]" />}>
+      <Section title="Attendees" icon={<UserIcon className="w-[18px] h-[18px]" />}>
         {meeting.attendees.length === 0 ? (
           <p className="text-sm text-slate-400">No attendees recorded.</p>
         ) : (
@@ -358,44 +442,132 @@ export default function MeetingDetailPage() {
         )}
       </Section>
 
-      {/* ── Discussion Summary ── */}
-      {meeting.discussion && (
-        <Section title="Discussion Summary" icon={<CheckCircleIcon className="w-[18px] h-[18px]" />}>
-          <p className="text-[13px] text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">{meeting.discussion.summary_text}</p>
-        </Section>
-      )}
+      {/* ── Discussion Summary (Editable) ── */}
+      <Section 
+        title="Discussion Summary" 
+        icon={<CheckCircleIcon className="w-[18px] h-[18px]" />}
+        action={
+          !editingDiscussion ? (
+            <button onClick={() => setEditingDiscussion(true)} className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400 hover:bg-brand-100 transition-colors">
+              <PencilSquareIcon className="w-3 h-3" /> Edit
+            </button>
+          ) : (
+            <div className="flex gap-2">
+              <button onClick={handleSaveDiscussion} className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors">
+                <CheckCircleIcon className="w-3 h-3" /> Save
+              </button>
+              <button onClick={() => { setEditingDiscussion(false); setDiscussionText(meeting?.discussion?.summary_text || ''); }} className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">
+                <XMarkIcon className="w-3 h-3" /> Cancel
+              </button>
+            </div>
+          )
+        }
+      >
+        {editingDiscussion ? (
+          <textarea
+            rows={6}
+            value={discussionText}
+            onChange={(e) => setDiscussionText(e.target.value)}
+            className={`${inputClass} resize-none leading-relaxed`}
+            placeholder="Enter discussion summary..."
+          />
+        ) : (
+          meeting.discussion ? (
+            <p className="text-[13px] text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">{meeting.discussion.summary_text}</p>
+          ) : (
+            <p className="text-sm text-slate-400 italic">No discussion summary recorded. Click "Edit" to add one.</p>
+          )
+        )}
+      </Section>
 
-      {/* ── Tasks ── */}
-      <Section title="Action Items / Tasks" icon={<ClipboardDocumentListIcon className="w-[18px] h-[18px]" />}>
-        {meeting.tasks.length === 0 ? (
+      {/* ── Tasks (Fully Editable) ── */}
+      <Section 
+        title="Action Items / Tasks" 
+        icon={<ClipboardDocumentListIcon className="w-[18px] h-[18px]" />}
+        action={
+          <button onClick={() => setShowAddTask(true)} className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400 hover:bg-brand-100 transition-colors">
+            <PlusIcon className="w-3 h-3" /> Add Task
+          </button>
+        }
+      >
+        {/* Add Task Form */}
+        {showAddTask && (
+          <div className="mb-4 p-4 rounded-xl bg-brand-50/50 dark:bg-brand-500/5 border border-brand-200 dark:border-brand-500/20 space-y-3">
+            <p className="text-[12px] font-bold text-brand-700 dark:text-brand-400 uppercase tracking-wide">New Task</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <input placeholder="Task Title *" value={newTask.title} onChange={(e) => setNewTask(p => ({ ...p, title: e.target.value }))} className={inputClass} />
+              <input placeholder="Responsible Person" value={newTask.responsible_person} onChange={(e) => setNewTask(p => ({ ...p, responsible_person: e.target.value }))} className={inputClass} />
+              <input placeholder="Responsible Email" value={newTask.responsible_email} onChange={(e) => setNewTask(p => ({ ...p, responsible_email: e.target.value }))} className={inputClass} />
+              <input type="date" value={newTask.deadline} onChange={(e) => setNewTask(p => ({ ...p, deadline: e.target.value }))} className={inputClass} />
+            </div>
+            <input placeholder="Description" value={newTask.description} onChange={(e) => setNewTask(p => ({ ...p, description: e.target.value }))} className={inputClass} />
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setShowAddTask(false)} className="px-3 py-1.5 text-[12px] font-bold rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">Cancel</button>
+              <button onClick={handleAddTask} disabled={!newTask.title.trim()} className="px-3 py-1.5 text-[12px] font-bold rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 transition-all">Add Task</button>
+            </div>
+          </div>
+        )}
+
+        {meeting.tasks.length === 0 && !showAddTask ? (
           <p className="text-sm text-slate-400">No tasks recorded.</p>
         ) : (
           <div className="space-y-2.5">
             {meeting.tasks.map((t) => (
-              <div key={t.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-white/5">
-                <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-semibold text-slate-800 dark:text-white">{t.title}</p>
-                  {t.description && <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-2">{t.description}</p>}
-                  <div className="flex flex-wrap items-center gap-3 mt-1.5 text-[11px] text-slate-400">
-                    {t.responsible_person && <span className="flex items-center gap-1"><UserIcon className="w-3 h-3" />{t.responsible_person}</span>}
-                    {t.deadline && <span className="flex items-center gap-1"><CalendarDaysIcon className="w-3 h-3" />Due: {t.deadline}</span>}
+              <div key={t.id} className="rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-white/5 overflow-hidden">
+                {editingTaskId === t.id ? (
+                  /* ── Inline Edit Mode ── */
+                  <div className="p-4 space-y-3 bg-amber-50/30 dark:bg-amber-500/5">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <input value={taskEditData.title} onChange={(e) => setTaskEditData(p => ({ ...p, title: e.target.value }))} className={inputClass} placeholder="Task Title" />
+                      <input value={taskEditData.responsible_person} onChange={(e) => setTaskEditData(p => ({ ...p, responsible_person: e.target.value }))} className={inputClass} placeholder="Responsible Person" />
+                      <input type="date" value={taskEditData.deadline} onChange={(e) => setTaskEditData(p => ({ ...p, deadline: e.target.value }))} className={inputClass} />
+                      <select value={taskEditData.status} onChange={(e) => setTaskEditData(p => ({ ...p, status: e.target.value }))} className={inputClass}>
+                        <option value="Pending">Pending</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Completed">Completed</option>
+                      </select>
+                    </div>
+                    <input value={taskEditData.description} onChange={(e) => setTaskEditData(p => ({ ...p, description: e.target.value }))} className={inputClass} placeholder="Description" />
+                    <div className="flex gap-2 justify-end">
+                      <button onClick={() => setEditingTaskId(null)} className="px-3 py-1.5 text-[12px] font-bold rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">Cancel</button>
+                      <button onClick={handleSaveEdit} className="px-3 py-1.5 text-[12px] font-bold rounded-lg bg-brand-600 text-white hover:bg-brand-700 transition-all">Save</button>
+                    </div>
                   </div>
-                </div>
-                <select
-                  value={t.status}
-                  onChange={(e) => handleStatusChange(t.id, e.target.value)}
-                  className={`text-[12px] font-bold px-3 py-1.5 rounded-lg border cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-400 shrink-0 ${statusColors[t.status] ?? statusColors['Pending']}`}
-                >
-                  <option value="Pending">Pending</option>
-                  <option value="In Progress">In Progress</option>
-                  <option value="Completed">Completed</option>
-                </select>
+                ) : (
+                  /* ── View Mode ── */
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-4">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-semibold text-slate-800 dark:text-white">{t.title}</p>
+                      {t.description && <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-2">{t.description}</p>}
+                      <div className="flex flex-wrap items-center gap-3 mt-1.5 text-[11px] text-slate-400">
+                        {t.responsible_person && <span className="flex items-center gap-1"><UserIcon className="w-3 h-3" />{t.responsible_person}</span>}
+                        {t.deadline && <span className="flex items-center gap-1"><CalendarDaysIcon className="w-3 h-3" />Due: {t.deadline}</span>}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <select
+                        value={t.status}
+                        onChange={(e) => handleStatusChange(t.id, e.target.value)}
+                        className={`text-[12px] font-bold px-3 py-1.5 rounded-lg border cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-400 ${statusColors[t.status] ?? statusColors['Pending']}`}
+                      >
+                        <option value="Pending">Pending</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Completed">Completed</option>
+                      </select>
+                      <button onClick={() => handleStartEdit(t)} className="p-1.5 rounded-lg text-slate-400 hover:text-brand-500 hover:bg-brand-50 dark:hover:bg-brand-500/10 transition-colors" title="Edit Task">
+                        <PencilSquareIcon className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => handleDeleteTask(t.id)} className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors" title="Delete Task">
+                        <TrashIcon className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
         )}
       </Section>
-
 
     </div>
   );

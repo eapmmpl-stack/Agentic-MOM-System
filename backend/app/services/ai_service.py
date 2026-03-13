@@ -34,7 +34,7 @@ class AIService:
                 punctuate=True,
                 format_text=True,
                 speech_models=["universal-3-pro", "universal-2"],
-                language_code="en" 
+                language_detection=True # Enable auto-detection for Hindi/Hinglish support
             )
             
             logger.info("📡 [DEBUG] Uploading and transcribing to AssemblyAI Cloud...")
@@ -103,7 +103,10 @@ class AIService:
         logger.info(f"📊 [DEBUG] Chunking transcript into {len(chunks)} segments.")
         
         map_prompt = ChatPromptTemplate.from_template(
-            "Extract highlights, decisions, and action items from this meeting segment:\n\n{text}"
+            "Extract highlights, decisions, and action items from this meeting segment. "
+            "The transcript may contain Hindi, English, or Hinglish (mixed Hindi-English). "
+            "Understand the context carefully and provide the summary in professional English. "
+            "\n\nSegment:\n{text}"
         )
         map_chain = map_prompt | llm | StrOutputParser()
         
@@ -118,8 +121,9 @@ class AIService:
         logger.info("🔥 [DEBUG] Merging all segments into professional MOM...")
         
         reduce_prompt = ChatPromptTemplate.from_template(
-            "Synthesize these meeting segment summaries into a professional, formal Minutes of Meeting (MOM) report with "
-            "Executive Summary, Decisions, and Action Items:\n\nSummaries:\n{summaries}"
+            "Synthesize these meeting segment summaries into a professional, formal Minutes of Meeting (MOM) report in English. "
+            "Ensure the report includes an Executive Summary, Decisions, and Action Items. "
+            "Note: The original discussion might have been in Hindi/Hinglish, so ensure the English synthesis is clear and professional.\n\nSummaries:\n{summaries}"
         )
         reduce_chain = reduce_prompt | llm | StrOutputParser()
         
@@ -129,8 +133,8 @@ class AIService:
         # 3. Beautify Stage (Formatted Narrative Summary)
         logger.info("✨ [DEBUG] Generating well-formatted Final Summary report...")
         beautify_prompt = ChatPromptTemplate.from_template(
-            "Create a well-formatted, easy-to-read final summary report of the entire meeting based on these segment summaries. "
-            "Focus on flowing narrative and key highlights that provide a complete picture of the discussion:\n\nSummaries:\n{summaries}"
+            "Create a well-formatted, easy-to-read final summary report in English based on these meeting summaries. "
+            "The discussion may have been in Hindi/Hinglish; focus on a flowing narrative and key highlights in professional English that provide a complete picture:\n\nSummaries:\n{summaries}"
         )
         beautify_chain = beautify_prompt | llm | StrOutputParser()
         formatted_summary = await beautify_chain.ainvoke({"summaries": combined_summaries_text})

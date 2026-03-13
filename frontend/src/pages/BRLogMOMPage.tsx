@@ -31,6 +31,7 @@ export default function BRLogMOMPage() {
                 attendees: meeting.attendees.map(a => ({
                     id: a.id,
                     attendance_status: a.attendance_status || 'Present',
+                    remarks: a.remarks || '',
                 })),
                 discussion_summary: meeting.discussion?.summary_text || '',
                 tasks: meeting.tasks.map(t => ({
@@ -61,10 +62,10 @@ export default function BRLogMOMPage() {
 
     const updateField = (field: string, value: any) => setForm((p) => ({ ...p, [field]: value }));
 
-    const updateAttendee = (i: number, status: string) =>
+    const updateAttendee = (i: number, field: 'attendance_status' | 'remarks', value: string) =>
         setForm((p) => ({
             ...p,
-            attendees: p.attendees.map((a, idx) => (idx === i ? { ...a, attendance_status: status as AttendanceStatus } : a)),
+            attendees: p.attendees.map((a, idx) => (idx === i ? { ...a, [field]: value } : a)),
         }));
 
     const addTask = () =>
@@ -218,15 +219,23 @@ export default function BRLogMOMPage() {
                                         <p className="text-[11px] text-slate-500 truncate">{a.designation || 'Director'}</p>
                                     </div>
                                 </div>
-                                <select
-                                    value={form.attendees[i]?.attendance_status || 'Present'}
-                                    onChange={(e) => updateAttendee(i, e.target.value)}
-                                    className={`${inputClass} py-2`}
-                                >
-                                    <option value="Present">Present</option>
-                                    <option value="Absent">Absent</option>
-                                    <option value="Excused">Excused</option>
-                                </select>
+                                <div className="flex flex-col gap-2">
+                                    <select
+                                        value={form.attendees[i]?.attendance_status || 'Present'}
+                                        onChange={(e) => updateAttendee(i, 'attendance_status', e.target.value)}
+                                        className={`${inputClass} py-2`}
+                                    >
+                                        <option value="Present">Present</option>
+                                        <option value="Absent">Absent</option>
+                                        <option value="Excused">Excused</option>
+                                    </select>
+                                    <input 
+                                        placeholder="Confidential Remark" 
+                                        value={form.attendees[i]?.remarks || ''} 
+                                        onChange={(e) => updateAttendee(i, 'remarks', e.target.value)} 
+                                        className={`${inputClass} py-2`} 
+                                    />
+                                </div>
                             </div>
                         ))}
                     </div>

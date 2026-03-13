@@ -68,6 +68,7 @@ class AttendeeCreate(BaseModel):
 class AttendeeStatusUpdate(BaseModel):
     id: int
     attendance_status: AttendanceStatus
+    remarks: Optional[str] = None
 
 
 class AttendeeResponse(BaseModel):
