@@ -75,58 +75,27 @@ def get_base_template(title: str, content: str, is_br: bool = False) -> str:
     """
 
 class EmailService:
-
     @staticmethod
     async def send_email(to_email: str, subject: str, body_html: str, attachment_data: Optional[bytes] = None, attachment_name: Optional[str] = None) -> bool:
-        """Send an HTML email via SMTP, with optional attachment. Returns True on success."""
-        if not settings.SMTP_USER or not settings.SMTP_PASSWORD:
-            logger.warning("SMTP credentials not configured – skipping email to %s", to_email)
-            return False
-
-        message = MIMEMultipart("mixed")
-        message["From"] = settings.EMAIL_FROM or settings.SMTP_USER
-        message["To"] = to_email
-        message["Subject"] = subject
-        
-        # Attach the HTML body part using an alternative wrapper if needed, but simple attaching to mixed works too
-        body_part = MIMEText(body_html, "html")
-        message.attach(body_part)
-        
-        if attachment_data and attachment_name:
-            part = MIMEApplication(attachment_data)
-            part.add_header('Content-Disposition', f'attachment; filename="{attachment_name}"')
-            message.attach(part)
-
-        # Try Port 465 first (Implicit TLS) as it often bypasses cloud firewall blocks
+        """Queues an email into the Google Sheets 'EmailQueue' tab for processing by Apps Script."""
         try:
-            await aiosmtplib.send(
-                message,
-                hostname=settings.SMTP_HOST,
-                port=465,
-                use_tls=True,
-                username=settings.SMTP_USER,
-                password=settings.SMTP_PASSWORD,
-                timeout=10,
-            )
-            logger.info("Email sent to %s: %s (via Port 465)", to_email, subject)
+            email_data = {
+                "to_email": to_email,
+                "subject": subject,
+                "body": body_html,
+                "status": "Pending",
+                "created_at": datetime.now().isoformat()
+            }
+            
+            # Note: We don't store raw bytes in Sheets. 
+            # The system already uploads PDFs to Drive and puts links in the summary/notif.
+            
+            SheetsDB.append_row("EmailQueue", email_data)
+            logger.info("Email queued in Google Sheets for %s: %s", to_email, subject)
             return True
-        except Exception as e1:
-            logger.warning("Port 465 failed for %s (%s). Falling back to Port 587...", to_email, e1)
-            try:
-                await aiosmtplib.send(
-                    message,
-                    hostname=settings.SMTP_HOST,
-                    port=587,
-                    start_tls=True,
-                    username=settings.SMTP_USER,
-                    password=settings.SMTP_PASSWORD,
-                    timeout=10,
-                )
-                logger.info("Email sent to %s: %s (via Port 587)", to_email, subject)
-                return True
-            except Exception as e2:
-                logger.error("Failed to send email to %s on BOTH ports: %s", to_email, e2)
-                return False
+        except Exception as e:
+            logger.error("Failed to queue email in Google Sheets for %s: %s", to_email, e)
+            return Falsealse
 
     @staticmethod
     async def send_task_assignment(to_email: str, task_title: str, meeting_title: str, deadline: str | None, is_br: bool = False):

@@ -88,7 +88,9 @@ SHEET_SCHEMAS: dict[str, list[str]] = {
     "Files": [
         "id", "meeting_id", "file_path", "file_type", "uploaded_at",
     ],
-
+    "EmailQueue": [
+        "id", "to_email", "subject", "body", "status", "created_at"
+    ],
     # ── Board Resolution (BR) Sheets ──────────────────────────────────
     "BR_Meetings": [
         "id", "title", "organization", "meeting_type", "meeting_mode",
@@ -208,7 +210,7 @@ def _row_to_dict(headers: list[str], row: list[str]) -> dict[str, str]:
 
 import time as time_module
 
-_CACHE_TTL = 60  # seconds
+_CACHE_TTL = 1  # Reduced to 1 second for responsive progress tracking
 _sheets_cache = {}
 
 def _get_sheet_values(sheet_name: str) -> list[list[str]]:
@@ -437,22 +439,36 @@ class SheetsDB:
 # ── Initialise sheets on import ───────────────────────────────────────
 
 def init_sheets():
-    """Ensure all defined sheet tabs exist with correct headers. Batch fetches metadata for efficiency."""
+    """Ensure all defined sheet tabs exist and headers match the schema.
+    This ensures that new columns added to SHEET_SCHEMAS are reflected in the actual Google Sheet.
+    """
     global _worksheets
     try:
         ss = _get_spreadsheet()
         # Single read call to fetch all worksheets
         existing_wss = ss.worksheets()
-        for ws in existing_wss:
-            _worksheets[ws.title] = ws
-            logger.debug("Worksheet cached on startup: %s", ws.title)
-
-        # Ensure required tabs from SCHEMA exist
-        for name in SHEET_SCHEMAS:
-            if name not in _worksheets:
-                # This will only run for truly missing tabs (unlikely after first setup)
-                get_worksheet(name)
-        logger.info("All Google Sheet tabs verified/cached.")
+        existing_titles = {ws.title: ws for ws in existing_wss}
+        
+        for name, expected_cols in SHEET_SCHEMAS.items():
+            if name not in existing_titles:
+                # Create missing worksheet
+                ws = ss.add_worksheet(title=name, rows=1000, cols=len(expected_cols))
+                ws.update("A1", [expected_cols])
+                ws.format("A1:Z1", {"textFormat": {"bold": True}})
+                _worksheets[name] = ws
+                logger.info("Created missing worksheet: %s", name)
+            else:
+                # Sync headers if they changed
+                ws = existing_titles[name]
+                _worksheets[name] = ws
+                current_headers = ws.row_values(1)
+                if current_headers != expected_cols:
+                    logger.info("Syncing headers for sheet: %s", name)
+                    # We only update headers if they are different. 
+                    # Note: This doesn't migrate data, just ensures the header row matches schema.
+                    ws.update("A1", [expected_cols])
+        
+        logger.info("All Google Sheet tabs verified/synced.")
     except Exception as e:
         logger.error("Failed to initialise Google Sheets: %s", e)
 
