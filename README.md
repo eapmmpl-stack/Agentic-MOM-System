@@ -11,7 +11,8 @@ Botivate is an intelligent, agentic system designed to autonomously handle, anal
 - **Intelligent Task Extraction:** Action items are automatically isolated, categorized, and assigned to respective owners without manual intervention.
 - **Google Cloud Integration:** Full archival system using **Google Sheets** as a comprehensive database and **Google Drive** for secure document storage.
 - **Board Resolution (BR) Management:** Specialized workflow for high-stakes resolutions with meeting-specific folder archival and governance evidence tracking.
-- **Automated Notifications:** Botivate automatically sends professional summary emails, task assignments, and overdue warnings with dynamically generated, meticulously styled **PDF attachments**.
+- **Automated Notifications:** Botivate automatically dispatches professional summary emails, task assignments, and absence warnings. It uses a **Google Sheets-backed Queue** processed by **Google Apps Script** to ensure 100% email delivery bypasses cloud platform port restrictions.
+- **Dynamic PDF Integration:** Emails include direct, secure **Google Drive download links** for dynamically generated, meticulously styled MOM and Executive Briefing PDFs.
 - **Rich Analytics Dashboard:** Gain deep insights into team productivity, meeting frequency trends, attendance rates, and action-item completion metrics.
 - **Dynamic White-Labeling:** Fully customizable branding (Company Name, Address, Logo) and optional "Powered by Botivate" attribution via environment variables.
 - **Modern & Premium UI:** Designed with a sleek, minimalist dark/light mode interface characterized by glassmorphism, dynamic animations, and brand-consistent styling.
@@ -75,10 +76,10 @@ graph TD
 - **FastAPI** (High-performance API framework)
 - **LangChain & OpenAI API** (GPT-4o-mini for logical synthesis and mapping/reducing)
 - **AssemblyAI** (For highly accurate cloud-based Audio Transcription)
-- **Google Sheets API v4** (Real-time Cloud Database via Pygsheets/Google API Client)
+- **Google Sheets API v4** (Real-time Cloud Database and **Email Queuing System**)
 - **Google Drive API v3** (Hierarchical Document Storage and Sharing)
-- **ReportLab** (Dynamic, aesthetic PDF generation for Executive Briefing & Action items)
-- **aiosmtplib** (Asynchronous Email Delivery system)
+- **ReportLab** (Dynamic, aesthetic PDF generation)
+- **Google Apps Script** (Automated serverless email processing & delivery)
 
 ---
 

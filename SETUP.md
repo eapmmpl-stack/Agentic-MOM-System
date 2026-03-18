@@ -67,16 +67,68 @@ Botivate's intelligence relies on two core Cloud vendors for processing audio.
 
 ---
 
-## ✉️ 3. SMTP Mail Configuration Setup
+## ✉️ 3. Email Automation Setup (Google Apps Script)
 
-To send automated task deadlines, board resolution MOM attachments, and absence warnings, Botivate utilizes Python's asynchronous `aiosmtplib` directly synced to a conventional Gmail SMTP.
+To bypass cloud port restrictions (on Render/HF), Botivate uses a **Google Sheets Email Queue**. A Google Apps Script processes this queue and sends emails via your Gmail account.
 
-### Step 3.1: Generate a Gmail App Password
-- Log in to the Google account you intend to send system emails from (e.g., `hr@yourdomain.com` or your personal Gmail).
-- Go to "Manage your Google Account" -> "Security".
-- Ensure **2-Step Verification** is turned ON.
-- Search for **App passwords** in the top search bar. 
-- Create a new App name named "MOM Assistant Backend" and generate the 16-character password (e.g., `abcd efgh ijkl mnop`).
+### Step 3.1: Create & Deploy the Apps Script
+1.  Open the Google Sheet you created in Step 1.5.
+2.  Go to **Extensions > Apps Script**.
+3.  Delete any existing code and paste the following:
+    ```javascript
+    /**
+     * Automatically sends emails from the EmailQueue sheet
+     * Trigger: Time-driven (every 1 minute)
+     */
+    function processEmailQueue() {
+      var ss = SpreadsheetApp.getActiveSpreadsheet();
+      var sheet = ss.getSheetByName("EmailQueue");
+      if (!sheet) return;
+
+      var data = sheet.getDataRange().getValues();
+      if (data.length <= 1) return; // Only headers
+
+      var headers = data[0];
+      var toIdx = headers.indexOf("to_email");
+      var subIdx = headers.indexOf("subject");
+      var bodyIdx = headers.indexOf("body");
+      var statusIdx = headers.indexOf("status");
+
+      for (var i = 1; i < data.length; i++) {
+        var row = data[i];
+        if (row[statusIdx] === "pending") {
+          try {
+            MailApp.sendEmail({
+              to: row[toIdx],
+              subject: row[subIdx],
+              htmlBody: row[bodyIdx]
+            });
+            sheet.getRange(i + 1, statusIdx + 1).setValue("sent");
+            sheet.getRange(i + 1, headers.indexOf("sent_at") + 1).setValue(new Date());
+          } catch (e) {
+            sheet.getRange(i + 1, statusIdx + 1).setValue("error: " + e.toString());
+          }
+        }
+      }
+    }
+
+    /**
+     * Run this ONCE to set up the 1-minute automation
+     */
+    function setupTrigger() {
+      var triggers = ScriptApp.getProjectTriggers();
+      for (var i = 0; i < triggers.length; i++) {
+        ScriptApp.deleteTrigger(triggers[i]);
+      }
+      ScriptApp.newTrigger('processEmailQueue')
+        .timeBased()
+        .everyMinutes(1)
+        .create();
+    }
+    ```
+4.  Click **Save** (disk icon) and name the project "MOM Email Automator".
+5.  In the toolbar, select **`setupTrigger`** from the dropdown and click **Run**.
+6.  Grant permissions when prompted. The bot is now 100% automated!
 
 ---
 
@@ -103,12 +155,12 @@ OPENAI_API_KEY="sk-your-openai-api-key-here"
 OPENAI_MODEL="gpt-4o-mini"
 ASSEMBLY_AI_API_KEY="your-assembly-ai-api-key-here"
 
-# Mail Configuration (Identified from Step 3)
-SMTP_USER="your-email@gmail.com"
-SMTP_PASSWORD="your-16-char-app-password"
-EMAIL_FROM="Botivate Governance <your-email@gmail.com>"
-SMTP_HOST="smtp.gmail.com"
-SMTP_PORT=587
+# Mail Configuration (LEGACY - No longer required if using Apps Script)
+# SMTP_USER="your-email@gmail.com"
+# SMTP_PASSWORD="your-16-char-app-password"
+# EMAIL_FROM="Botivate Governance <your-email@gmail.com>"
+# SMTP_HOST="smtp.gmail.com"
+# SMTP_PORT=587
 
 # Branding & White-Labeling (Identified from Step 6)
 CLIENT_NAME="Your Client Name"

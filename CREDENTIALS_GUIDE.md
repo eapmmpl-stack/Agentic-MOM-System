@@ -25,23 +25,18 @@ Used to convert recorded meeting audio into text.
 
 ---
 
-## 3. Gmail SMTP (Email Notifications)
-To send automated emails (Invitations, MOMs, Reminders) from a Gmail account.
+## 3. Email Automation (Google Apps Script)
+To ensure reliable email delivery (bypassing cloud port restrictions), we use a Google Apps Script that triggers every minute.
 
-> [!IMPORTANT]
-> You cannot use your regular Gmail password. You MUST create an **App Password**.
-
-1.  Go to your [Google Account Settings](https://myaccount.google.com/).
-2.  Go to **Security**.
-3.  Enable **2-Step Verification** (if not already enabled).
-4.  Search for **"App passwords"** in the top search bar.
-5.  Select **App: Other (Custom Name)** and enter "MOM Assistant".
-6.  Click **Generate**.
-7.  **Copy the 16-character code** (this is your `SMTP_PASSWORD`).
-8.  Update `.env`:
-    *   `SMTP_USER`: Your Gmail address.
-    *   `SMTP_PASSWORD`: The 16-character code.
-    *   `EMAIL_FROM`: Your Gmail address.
+1.  Open your **Google Sheet** (the one used for the database).
+2.  Go to **Extensions > Apps Script**.
+3.  Paste the Code:
+    *   (The code is available in `SETUP.md` under Section 3).
+4.  Setup Automation:
+    *   Select `setupTrigger` from the dropdown in the toolbar.
+    *   Click **Run**.
+    *   Authorize the script.
+5.  **Status**: Your emails will now be automatically sent from your Gmail account whenever the backend adds them to the `EmailQueue` tab.
 
 ---
 

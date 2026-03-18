@@ -43,8 +43,7 @@ const api = axios.create({
     *   `ASSEMBLY_AI_API_KEY`: `...`
     *   `SPREADSHEET_ID`: `...`
     *   `DRIVE_FOLDER_ID`: `...`
-    *   `SMTP_USER`: `...`
-    *   `SMTP_PASSWORD`: `...` (16-char app password)
+    *   `DRIVE_FOLDER_ID`: `...`
     *   `CLIENT_NAME`: `...`
     *   `CLIENT_ADDRESS`: `...`
     *   `CLIENT_CS_EMAIL`: `...`
@@ -98,7 +97,8 @@ Once your frontend is deployed (e.g., `https://agentic-mom-system.onrender.com`)
 *   **Build Fails**: Check if you set the **Root Directory** correctly (`backend` or `frontend`).
 *   **API Errors**: Ensure `VITE_API_BASE_URL` in the frontend has `https://` and ends with `/api/v1`.
 *   **Google Auth 403**: Ensure your Render Backend environment variables (Spreadsheet ID, etc.) match exactly.
-*   **SMTP Errors**: Check if your Gmail App Password has spaces (it shouldn't).
+*   **Email Errors**: Ensure you have set up the **Google Apps Script** as described in `SETUP.md`. If emails aren't sending, check the `EmailQueue` tab in your Google Sheet—if the status remains 'pending', the Apps Script trigger is not running.
+*   **Quota Errors (429)**: Google Sheets has a limit of 60 reads/min. The system uses a 10-second cache to stay within these limits. Avoid having too many tabs open at once.
 
 ---
 *Botivate Services LLP © 2026. Secure Deployment on Autopilot.*
