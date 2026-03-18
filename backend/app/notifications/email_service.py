@@ -10,6 +10,7 @@ from datetime import datetime
 import aiosmtplib
 
 from app.config import get_settings
+from app.services.google_sheets_service import SheetsDB
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -95,7 +96,7 @@ class EmailService:
             return True
         except Exception as e:
             logger.error("Failed to queue email in Google Sheets for %s: %s", to_email, e)
-            return Falsealse
+            return False
 
     @staticmethod
     async def send_task_assignment(to_email: str, task_title: str, meeting_title: str, deadline: str | None, is_br: bool = False):
