@@ -58,7 +58,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* ════════════════════ MOBILE SIDEBAR (Overlay) ════════════════════ */}
       <div className={`fixed inset-0 z-50 md:hidden transition-opacity duration-300 ${isMobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
         <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)} />
-        <aside className={`absolute left-0 top-0 bottom-0 w-[280px] bg-white dark:bg-[#161b27] shadow-xl transition-transform duration-300 transform ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <aside className={`absolute left-0 top-0 bottom-0 w-[280px] flex flex-col bg-white dark:bg-[#161b27] shadow-xl transition-transform duration-300 transform ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
           <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-3">
               <img src="/botivate-logo-cropped.png" alt="Logo" className="w-[32px] h-[32px] object-contain" />
@@ -86,6 +86,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               );
             })}
           </nav>
+
+          {/* Powered by Footer in Mobile Sidebar */}
+          {branding?.show_botivate_branding && (
+            <a 
+              href="https://botivate.in/" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="p-5 border-t border-slate-100 dark:border-slate-800 mt-auto bg-slate-50/50 dark:bg-[#121622]/50 hover:bg-slate-100 dark:hover:bg-white/5 transition-colors cursor-pointer block"
+            >
+              <div className="flex items-center gap-3.5">
+                <img src="/botivate-logo-cropped.png" alt="Logo" className="w-[32px] h-[32px] object-contain drop-shadow-sm shrink-0" />
+                <div className="overflow-hidden flex flex-col justify-center">
+                  <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mb-0.5">Powered by</p>
+                  <p className="text-[13px] font-extrabold text-slate-800 dark:text-white leading-none truncate">Botivate Services</p>
+                </div>
+              </div>
+            </a>
+          )}
         </aside>
       </div>
 
@@ -161,7 +179,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </button>
             <div className="min-w-0">
               <h2 className="text-[16px] md:text-[20px] font-extrabold text-slate-800 dark:text-white leading-tight truncate">{pageLabel}</h2>
-              <p className="text-[11px] md:text-[12px] text-slate-500 dark:text-slate-400 mt-0.5 max-w-[200px] md:max-w-none truncate">
+              <p className="text-[11px] md:text-[12px] text-slate-500 dark:text-slate-400 mt-0.5">
                 Welcome back to {branding?.client_name || 'Botivate'}.
               </p>
             </div>
