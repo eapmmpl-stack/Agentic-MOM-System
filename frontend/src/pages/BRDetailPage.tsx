@@ -256,6 +256,7 @@ export default function BRDetailPage() {
                 <RecordingOverlay 
                     meetingId={meeting.id} 
                     meetingType="BR" 
+                    meetingMode={meeting.meeting_mode}
                     onComplete={refreshData} 
                 />
             )}

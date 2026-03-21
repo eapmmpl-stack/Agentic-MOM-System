@@ -3,6 +3,17 @@ import os
 import shutil
 import uuid
 import logging
+import threading
+from datetime import datetime
+from pydantic import BaseModel
+
+try:
+    import soundcard as sc
+    import soundfile as sf
+    import numpy as np
+except ImportError:
+    pass
+
 from app.services.ai_service import AIService
 from app.services.google_sheets_service import upload_to_drive, SheetsDB, ensure_subfolder
 from app.services.br_meeting_service import BRService
@@ -27,22 +38,146 @@ PIPELINE_STAGES = {
     "failed": {"step": 0, "total": 6, "label": "Processing failed."},
 }
 
+pipeline_tracker: dict = {}
+
 def _update_stage(mid: int, mtype: str, stage: str):
     """Update processing_stage on the meeting row for frontend polling."""
+    tracker_key = f"{mtype}_{mid}"
+    pipeline_tracker[tracker_key] = stage
+
     sheet = "BR_Meetings" if mtype == "BR" else "Meetings"
     SheetsDB.update_row(sheet, mid, {"processing_stage": stage})
     logger.info(f"[PIPELINE] Stage updated -> {stage} for meeting {mid}")
+
+# ── SYSTEM AUDIO RECORDING FOR ONLINE MEETINGS ──
+class SystemRecordRequest(BaseModel):
+    meeting_id: int
+    meeting_type: str
+
+active_system_recordings: dict = {}
+
+def record_audio_thread(session_id, samplerate=44100):
+    try:
+        # Connect strictly to the SPEAKER loopback (system audio), ignoring standard microphones
+        sp = sc.default_speaker()
+        mic = sc.get_microphone(sp.id, include_loopback=True)
+        
+        with mic.recorder(samplerate=samplerate) as recorder:
+            while active_system_recordings.get(session_id, {}).get("recording"):
+                # Read chunks of ~0.1 seconds
+                indata = recorder.record(numframes=4410)
+                
+                state = active_system_recordings.get(session_id)
+                if state and state.get("recording"):
+                    state["audio_data"].append(indata.copy())
+                    # Calculate simple amplitude proxy
+                    amp = float(np.sqrt(np.mean(indata**2)))
+                    # Multiply to make it match the 0-100% range expected by frontend visualizer
+                    state["signal_level"] = min(100.0, amp * 1500)
+    except Exception as e:
+        logger.error(f"Error in true system recording loopback thread: {e}")
+
+@router.post("/system/start")
+async def start_system_recording(req: SystemRecordRequest):
+    session_id = f"{req.meeting_type}_{req.meeting_id}"
+    
+    active_system_recordings[session_id] = {
+        "recording": True,
+        "audio_data": [],
+        "samplerate": 44100,
+        "signal_level": 0.0
+    }
+    
+    thread = threading.Thread(target=record_audio_thread, args=(session_id, 44100))
+    thread.daemon = True
+    thread.start()
+    
+    logger.info(f"System recording started for session {session_id} using WASAPI loopback")
+    return {"status": "started"}
+
+@router.get("/system/signal")
+async def get_system_signal(meeting_id: int, meeting_type: str = "Regular"):
+    session_id = f"{meeting_type}_{meeting_id}"
+    state = active_system_recordings.get(session_id)
+    if state and state.get("recording"):
+        return {"level": state.get("signal_level", 0.0)}
+    return {"level": 0.0}
+
+@router.post("/system/stop")
+async def stop_system_recording(req: SystemRecordRequest, background_tasks: BackgroundTasks):
+    session_id = f"{req.meeting_type}_{req.meeting_id}"
+    
+    if session_id not in active_system_recordings or not active_system_recordings[session_id].get("recording"):
+        raise HTTPException(status_code=400, detail="No active recording found for this meeting")
+        
+    active_system_recordings[session_id]["recording"] = False
+    
+    audio_data = active_system_recordings[session_id]["audio_data"]
+    samplerate = active_system_recordings[session_id]["samplerate"]
+    
+    if not audio_data:
+        del active_system_recordings[session_id]
+        raise HTTPException(status_code=400, detail="No audio captured")
+        
+    audio = np.concatenate(audio_data, axis=0)
+    
+    temp_dir = "temp_recordings"
+    os.makedirs(temp_dir, exist_ok=True)
+    filename = f"system_audio_{uuid.uuid4().hex}.wav"
+    temp_path = os.path.join(temp_dir, filename)
+    
+    sf.write(temp_path, audio, samplerate)
+    del active_system_recordings[session_id]
+    
+    logger.info(f"System recording saved to {temp_path} for session {session_id}. Starting AI Pipeline...")
+    
+    # Seamless Pipeline Binding (Fetch meeting data explicitly)
+    try:
+        if req.meeting_type == "BR":
+            meeting = await BRService.get_br(None, req.meeting_id)
+            parent_root = "BR Meetings"
+        else:
+            meeting = await MeetingService.get_meeting(None, req.meeting_id)
+            parent_root = "Meetings"
+    except Exception as e:
+        logger.error(f"Database error while fetching meeting {req.meeting_id}: {e}")
+        if os.path.exists(temp_path): os.remove(temp_path)
+        raise HTTPException(status_code=500, detail=f"Database error: {e}")
+
+    if not meeting:
+        if os.path.exists(temp_path): os.remove(temp_path)
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    dfid = getattr(meeting, 'drive_folder_id', None)
+    _update_stage(req.meeting_id, req.meeting_type, "uploading")
+
+    background_tasks.add_task(
+        run_ai_pipeline,
+        req.meeting_id,
+        req.meeting_type,
+        temp_path,
+        meeting.title,
+        str(meeting.date),
+        str(meeting.time),
+        dfid,
+        parent_root
+    )
+    
+    return {"status": "Processing started", "detail": "System audio saved and AI pipeline triggered."}
+
 
 
 @router.get("/status/{meeting_id}")
 async def get_processing_status(meeting_id: int, meeting_type: str = "Regular"):
     """Returns the current processing stage of a meeting's AI pipeline."""
+    tracker_key = f"{meeting_type}_{meeting_id}"
     sheet = "BR_Meetings" if meeting_type == "BR" else "Meetings"
     m = SheetsDB.get_by_id(sheet, meeting_id)
     if not m:
         raise HTTPException(status_code=404, detail="Meeting not found")
     
-    stage_key = m.get("processing_stage", "")
+    # Overwrite with real-time memory tracker if available to prevent Sheets DB lag
+    stage_key = pipeline_tracker.get(tracker_key) or m.get("processing_stage", "")
     stage_info = PIPELINE_STAGES.get(stage_key, {"step": 0, "total": 6, "label": "Waiting..."})
     
     return {

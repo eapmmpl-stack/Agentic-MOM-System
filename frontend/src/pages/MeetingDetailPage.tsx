@@ -291,6 +291,7 @@ export default function MeetingDetailPage() {
         <RecordingOverlay 
           meetingId={meeting.id} 
           meetingType="Regular" 
+          meetingMode={meeting.meeting_mode}
           onComplete={fetchMeeting} 
         />
       )}

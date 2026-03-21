@@ -12,10 +12,13 @@ import api from '../api';
 interface Props {
     meetingId: number;
     meetingType: 'Regular' | 'BR';
+    meetingMode?: string;
     onComplete?: () => void;
 }
 
-const RecordingOverlay: React.FC<Props> = ({ meetingId, meetingType, onComplete }) => {
+const RecordingOverlay: React.FC<Props> = ({ meetingId, meetingType, meetingMode, onComplete }) => {
+    const isOnline = meetingMode === 'Online';
+
     const [isRecording, setIsRecording] = useState(false);
     const [isPaused, setIsPaused] = useState(false);
     const [time, setTime] = useState(0);
@@ -51,15 +54,38 @@ const RecordingOverlay: React.FC<Props> = ({ meetingId, meetingType, onComplete 
         getDevices();
     }, []);
 
-    // Timer Logic
+    // Timer & Signal Logic
     useEffect(() => {
+        let timer: number | null = null;
+        let signalTimer: number | null = null;
+        
         if (isRecording && !isPaused) {
-            timerRef.current = window.setInterval(() => setTime(prev => prev + 1), 1000);
+            timer = window.setInterval(() => setTime(prev => prev + 1), 1000);
+            
+            if (isOnline) {
+                signalTimer = window.setInterval(async () => {
+                    try {
+                        const res = await api.get('/recording/system/signal', {
+                            params: { meeting_id: meetingId, meeting_type: meetingType }
+                        });
+                        if (res?.data && typeof res.data.level === 'number') {
+                            setSignalLevel(res.data.level);
+                        }
+                    } catch (e) {
+                        // ignore poll errors
+                    }
+                }, 300);
+            }
         } else {
-            if (timerRef.current) clearInterval(timerRef.current);
+            if (timer) clearInterval(timer);
+            if (signalTimer) clearInterval(signalTimer);
         }
-        return () => { if (timerRef.current) clearInterval(timerRef.current); };
-    }, [isRecording, isPaused]);
+        
+        return () => { 
+            if (timer) clearInterval(timer); 
+            if (signalTimer) clearInterval(signalTimer); 
+        };
+    }, [isRecording, isPaused, isOnline, meetingId, meetingType]);
 
     const formatTime = (seconds: number) => {
         const hrs = Math.floor(seconds / 3600);
@@ -69,6 +95,19 @@ const RecordingOverlay: React.FC<Props> = ({ meetingId, meetingType, onComplete 
     };
 
     const startRecording = async () => {
+        if (isOnline) {
+            try {
+                await api.post('/recording/system/start', { meeting_id: meetingId, meeting_type: meetingType });
+                setIsRecording(true);
+                setTime(0);
+                toast.success("System recording started");
+            } catch (err) {
+                console.error('[Mic Debug] Start Error:', err);
+                toast.error("Failed to start system recording");
+            }
+            return;
+        }
+
         try {
             console.log('[Mic Debug] Starting with Device:', selectedDeviceId);
             const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -121,7 +160,22 @@ const RecordingOverlay: React.FC<Props> = ({ meetingId, meetingType, onComplete 
         }
     };
 
-    const stopRecording = () => {
+    const stopRecording = async () => {
+        if (isOnline) {
+            setIsProcessing(true);
+            try {
+                await api.post('/recording/system/stop', { meeting_id: meetingId, meeting_type: meetingType });
+                setIsRecording(false);
+                toast.success("Intelligence report is generating...");
+                if (onComplete) onComplete();
+            } catch (err) {
+                console.error('System recording stop error:', err);
+                toast.error("Failed to stop system recording");
+                setIsProcessing(false);
+            }
+            return;
+        }
+
         if (mediaRecorderRef.current) {
             mediaRecorderRef.current.stop();
             mediaRecorderRef.current.stream.getTracks().forEach(t => t.stop());
@@ -159,23 +213,25 @@ const RecordingOverlay: React.FC<Props> = ({ meetingId, meetingType, onComplete 
 
     if (!isRecording) return (
         <div className="p-4 bg-slate-50 dark:bg-white/5 rounded-3xl border border-slate-200 dark:border-white/10 flex flex-col gap-4">
-            <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-brand-500/10 flex items-center justify-center">
-                    <MicrophoneIcon className="w-5 h-5 text-brand-500" />
+            {!isOnline && (
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-brand-500/10 flex items-center justify-center">
+                        <MicrophoneIcon className="w-5 h-5 text-brand-500" />
+                    </div>
+                    <div className="flex-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Speaker Source</label>
+                        <select 
+                            value={selectedDeviceId}
+                            onChange={(e) => setSelectedDeviceId(e.target.value)}
+                            className="w-full bg-transparent text-sm font-bold outline-none dark:text-white"
+                        >
+                            {devices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || 'Default Audio Device'}</option>)}
+                        </select>
+                    </div>
                 </div>
-                <div className="flex-1">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Speaker Source</label>
-                    <select 
-                        value={selectedDeviceId}
-                        onChange={(e) => setSelectedDeviceId(e.target.value)}
-                        className="w-full bg-transparent text-sm font-bold outline-none dark:text-white"
-                    >
-                        {devices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || 'Default Audio Device'}</option>)}
-                    </select>
-                </div>
-            </div>
+            )}
             <button onClick={startRecording} className="w-full py-4 bg-brand-600 text-white rounded-2xl font-bold hover:bg-brand-700 shadow-xl shadow-brand-500/20 active:scale-95 transition-all">
-                Start Intelligence Capture
+                {isOnline ? "Start System Recording" : "Start Intelligence Capture"}
             </button>
         </div>
     );

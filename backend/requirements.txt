@@ -44,3 +44,8 @@ apscheduler==3.10.4
 python-dotenv==1.0.0
 httpx==0.25.2
 aiofiles==23.2.1
+
+# System Audio capture
+sounddevice==0.4.6
+soundfile==0.12.1
+numpy
