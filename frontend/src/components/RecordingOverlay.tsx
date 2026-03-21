@@ -83,19 +83,34 @@ const RecordingOverlay: React.FC<Props> = ({ meetingId, meetingType, meetingMode
             
             if (isOnline) {
                 // Online meeting -> Request Screen/System Audio
-                toast.loading("Click 'Start', select 'Entire Screen' or 'Tab', and CHECK 'Share Audio'!!", { duration: 6000 });
+                toast.loading("Click 'Start', and IF shown, CHECK 'Share Audio'!!", { duration: 6000 });
                 
                 try {
-                    // Note: On Mobile, getDisplayMedia might not offer audio sharing in many browsers.
+                    // Modern constraints to nudge the browser
                     displayStream = await navigator.mediaDevices.getDisplayMedia({
                         video: true, 
-                        audio: true
+                        audio: {
+                            echoCancellation: false,
+                            noiseSuppression: false,
+                            autoGainControl: false,
+                            // @ts-ignore - experimental constraint to help with audio capture
+                            selfBrowserSurface: "include",
+                            systemAudio: "include"
+                        }
                     });
                     
                     const audioTracks = displayStream.getAudioTracks();
+                    
                     if (audioTracks.length === 0) {
                         displayStream.getTracks().forEach(t => t.stop());
-                        toast.error("CAPTURE FAILED: No system audio track found. Please ensure 'Share Audio' is checked (Desktop) or your device supports internal audio capture (Mobile).");
+                        
+                        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+                        if (isMobile) {
+                            toast.error("MOBILE LIMIT: Your phone blocks web browsers from recording internal audio. (Inbuilt recorders are native apps, they have more power).", { duration: 10000 });
+                            toast("Tip: Use your Mobile's Inbuilt Recorder and then 'Upload' the file!", { icon: '💡', duration: 10000 });
+                        } else {
+                            toast.error("CAPTURE FAILED: System Audio checkmark was NOT checked!");
+                        }
                         return;
                     }
                     
@@ -106,7 +121,7 @@ const RecordingOverlay: React.FC<Props> = ({ meetingId, meetingType, meetingMode
                     if (videoTrack) videoTrack.onended = () => stopRecording();
                 } catch (e) {
                     console.error("Capture Error:", e);
-                    toast.error("Process Cancelled or Unsupported on this device.");
+                    toast.error("Process Cancelled or not supported by this browser.");
                     return;
                 }
             } else {
