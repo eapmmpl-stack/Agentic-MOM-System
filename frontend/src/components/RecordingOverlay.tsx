@@ -82,40 +82,47 @@ const RecordingOverlay: React.FC<Props> = ({ meetingId, meetingType, meetingMode
             let displayStream: MediaStream | null = null;
             
             if (isOnline) {
-                // Online meeting -> Try SYSTEM SOUND via Screen Share first
-                try {
-                    if (!navigator.mediaDevices.getDisplayMedia) {
-                        throw new Error("DisplayMedia not supported");
-                    }
-                    
-                    displayStream = await navigator.mediaDevices.getDisplayMedia({
-                        video: true, // Browser requires video to be true to capture screen
-                        audio: true
-                    });
-                    
-                    const audioTracks = displayStream.getAudioTracks();
-                    if (audioTracks.length === 0) {
-                        displayStream.getTracks().forEach(t => t.stop());
-                        toast.error("Please make sure to check 'Share tab audio' or 'Share system audio' in the browser popup!");
-                        return;
-                    }
-                    
-                    stream = new MediaStream([audioTracks[0]]);
-                    
-                    // Auto-stop if user clicks "Stop Sharing" on Chrome's floating bar
-                    const videoTrack = displayStream.getVideoTracks()[0];
-                    if (videoTrack) {
-                        videoTrack.onended = () => stopRecording();
-                    }
-                } catch (e) {
-                    // Mobile & Tablet Fallback
-                    console.warn("Screen share failed/cancelled, falling back to Microphone:", e);
-                    toast("Using Mobile/Mic Fallback. Please put your meeting on Speakerphone!", { icon: '📱', duration: 4000 });
+                const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+                
+                if (isMobile) {
+                    // Mobile & Tablet: System audio capture is restricted by OS
+                    toast("Mobile Browsers can't record internal audio. Using Microphone - please use Speakerphone!", { icon: '📱', duration: 6000 });
                     stream = await navigator.mediaDevices.getUserMedia({ 
-                        audio: { 
-                            deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined,
-                        } 
+                        audio: { deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined } 
                     });
+                } else {
+                    // Desktop: Online meeting -> Use Screen Share with explicit instructions
+                    toast.loading("Select 'Entire Screen' or 'Tab' and CHECK 'Share Audio' checkbox!", { duration: 5000 });
+                    
+                    try {
+                        displayStream = await navigator.mediaDevices.getDisplayMedia({
+                            video: true, 
+                            audio: {
+                                echoCancellation: true,
+                                noiseSuppression: true
+                            }
+                        });
+                        
+                        const audioTracks = displayStream.getAudioTracks();
+                        if (audioTracks.length === 0) {
+                            displayStream.getTracks().forEach(t => t.stop());
+                            toast.error("Audio NOT shared! Please check 'Share Audio' in the popup.");
+                            return;
+                        }
+                        
+                        stream = new MediaStream([audioTracks[0]]);
+                        
+                        const videoTrack = displayStream.getVideoTracks()[0];
+                        if (videoTrack) {
+                            videoTrack.onended = () => stopRecording();
+                        }
+                    } catch (e) {
+                        console.warn("Screen share failed/cancelled:", e);
+                        toast.error("Screen share cancelled. Falling back to Microphone.");
+                        stream = await navigator.mediaDevices.getUserMedia({ 
+                            audio: { deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined } 
+                        });
+                    }
                 }
             } else {
                 // Offline meeting -> Capture MICROPHONE
