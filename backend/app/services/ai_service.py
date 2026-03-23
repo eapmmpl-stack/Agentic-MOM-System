@@ -167,28 +167,35 @@ class AIService:
         combined_summaries_text = "\n\n".join(chunk_summaries)
         final_summary = await reduce_chain.ainvoke({"summaries": combined_summaries_text})
 
-        # 3. Beautify Stage (Formatted Narrative Summary)
-        logger.info("✨ [DEBUG] Generating well-formatted Final Summary report...")
+        # 3. Beautify Stage (Detailed Narrative Briefing)
+        logger.info("✨ [DEBUG] Generating Extensive Intelligence Report (Narrative)...")
         beautify_prompt = ChatPromptTemplate.from_template(
-            "Create a well-formatted, easy-to-read final summary report in English based on these meeting summaries. "
-            "The discussion may have been in Hindi/Hinglish; focus on a flowing narrative and key highlights in professional English. "
-            "\n\nCRITICAL INSTRUCTIONS: "
-            "1. DO NOT use generic placeholders like [Your Name], [Your Position], [Company Name], or [Insert Date]. "
-            "2. DO NOT include a signature or contact section at the end. "
-            "3. DO NOT include a 'Final Summary Report' title line. "
-            "4. Start directly with the overview or highlights. "
-            "5. Use Markdown styles (## for headings, ** for bold, bullet points for lists) moderately for readability."
+            "Create a comprehensive, formal, and strategically detailed Executive Briefing report in professional English. "
+            "Understand the context of every topic discussed (Hindi/English/Hinglish) and expand on it. "
+            "\n\nFORMATTING INSTRUCTIONS: "
+            "1. Use `## Header` for each major topic discussed. "
+            "2. Under each topic, write at least one detailed long paragraph describing the debate/discussion points. "
+            "3. Use **Bold Text** for key decisions, numbers, and deadlines. "
+            "4. Include a dedicated section: `## AI-IDENTIFIED DAILY TASKS` at the end, listing all actionable items. "
+            "5. NO generic placeholders like [Your Name]. "
+            "6. DO NOT use hashtags (#) except for section headers (##). "
             "\n\nSummaries:\n{summaries}"
         )
         beautify_chain = beautify_prompt | llm | StrOutputParser()
         formatted_summary = await beautify_chain.ainvoke({"summaries": combined_summaries_text})
 
-        # 4. Dashboard Stage (Short Point-wise Summary)
-        logger.info("📊 [DEBUG] Extracting concise dashboard summary points...")
+        # 4. Dashboard Stage (Formatted Long Narrative Support)
+        logger.info("📊 [DEBUG] Generating Detailed Formatted Dashboard Autofill...")
         dashboard_prompt = ChatPromptTemplate.from_template(
-            "Extract 5-8 most critical, high-impact bullet points from these meeting summaries for a dashboard view. "
-            "Keep them short, action-oriented, and easy to read at a glance.\n"
-            "CRITICAL INSTRUCTION: Return the response in PLAIN TEXT ONLY. Do NOT use any Markdown formatting, bolding (**), italics, or hashtags. Just use a simple dash (-) for bullet points.\n\nSummaries:\n{summaries}"
+            "Create a detailed, multi-paragraph discussion summary for a dashboard view. "
+            "This summary will be used to autofill the 'Discussion Summary' box in the UI. "
+            "Instructions: "
+            "1. Do not provide a short summary; aim for a rich, formatted narrative (300-500 words). "
+            "2. Use `## ` for section headers. "
+            "3. Describe every topic discussed in detail. "
+            "4. Incorporate a list of 'Recommended Tasks & Next Steps' at the end. "
+            "5. Return as PLAIN TEXT with clear manually-added formatting (using - for bullets and ## for headers). No hashtags or boldিং (**) except for Markdown support. "
+            "\n\nSummaries:\n{summaries}"
         )
         dashboard_chain = dashboard_prompt | llm | StrOutputParser()
         brief_summary = await dashboard_chain.ainvoke({"summaries": combined_summaries_text})

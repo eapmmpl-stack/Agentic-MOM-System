@@ -20,6 +20,32 @@ LOGO_PATH = r"c:\Users\prabh\Desktop\MOM_AI_Assistant\B PNG.png"
 PAGE_W, PAGE_H = A4  # 595.27, 841.89
 
 # ──────────────────────────────────────────────────────────────────────
+# FONT REGISTRATION (To Support Indian Rupee ₹ and Symbols)
+# ──────────────────────────────────────────────────────────────────────
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+
+# We try to use DejaVuSans if available for Unicode support (Rupee Symbol, etc.)
+# If file doesn't exist, we fallback to Helvetica (which has black boxes for symbols)
+FONT_NAME = "Helvetica"
+FONT_BOLD = "Helvetica-Bold"
+
+try:
+    # Look for fonts in a relative 'fonts' directory
+    font_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "fonts")
+    ttf_path = os.path.join(font_dir, "DejaVuSans.ttf")
+    if os.path.exists(ttf_path):
+        pdfmetrics.registerFont(TTFont('DejaVuSans', ttf_path))
+        pdfmetrics.registerFont(TTFont('DejaVuSans-Bold', os.path.join(font_dir, "DejaVuSans-Bold.ttf")))
+        FONT_NAME = "DejaVuSans"
+        FONT_BOLD = "DejaVuSans-Bold"
+        logger.info("Successfully registered DejaVuSans for Unicode PDF support.")
+    else:
+        logger.warning(f"DejaVuSans.ttf not found at {ttf_path}. Symbols might show as black boxes.")
+except Exception as e:
+    logger.error(f"Error registering Unicode fonts: {e}")
+
+# ──────────────────────────────────────────────────────────────────────
 # HELPERS: MARKDOWN PARSING & CLEANUP
 # ──────────────────────────────────────────────────────────────────────
 
@@ -133,9 +159,9 @@ def generate_any_pdf(title: str, subtitle: str, content: str) -> bytes:
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=120, bottomMargin=120)
     styles = getSampleStyleSheet()
-    h1 = ParagraphStyle('H1', parent=styles['Heading1'], fontName='Helvetica-Bold', fontSize=14, textColor=colors.HexColor("#1e293b"), spaceAfter=12)
-    h2 = ParagraphStyle('H2', parent=styles['Heading2'], fontName='Helvetica-Bold', fontSize=11, textColor=colors.HexColor("#334155"), spaceAfter=8, spaceBefore=12)
-    body = ParagraphStyle('Body', parent=styles['Normal'], fontName='Helvetica', fontSize=10, textColor=colors.HexColor("#475569"), leading=14, spaceAfter=6)
+    h1 = ParagraphStyle('H1', parent=styles['Heading1'], fontName=FONT_BOLD, fontSize=14, textColor=colors.HexColor("#1e293b"), spaceAfter=12)
+    h2 = ParagraphStyle('H2', parent=styles['Heading2'], fontName=FONT_BOLD, fontSize=11, textColor=colors.HexColor("#334155"), spaceAfter=8, spaceBefore=12)
+    body = ParagraphStyle('Body', parent=styles['Normal'], fontName=FONT_NAME, fontSize=10, textColor=colors.HexColor("#475569"), leading=14, spaceAfter=6)
 
     elements = []
     elements.append(Paragraph(f"<b>{title.upper()}</b>", h1))
@@ -395,11 +421,11 @@ def generate_summary_pdf(title: str, date: str, summary_text: str) -> bytes:
     doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=40, rightMargin=40, topMargin=75, bottomMargin=30)
     styles = getSampleStyleSheet()
 
-    h1 = ParagraphStyle('SH1', parent=styles['Heading1'], fontName='Helvetica-Bold', fontSize=15, textColor=colors.HexColor("#1e1b4b"), spaceAfter=6)
-    h2 = ParagraphStyle('SH2', parent=styles['Heading2'], fontName='Helvetica-Bold', fontSize=11, textColor=colors.HexColor("#4338ca"), spaceAfter=6, spaceBefore=14)
-    meta = ParagraphStyle('SMeta', parent=styles['Normal'], fontName='Helvetica', fontSize=9, textColor=colors.HexColor("#64748b"), spaceAfter=2)
-    body = ParagraphStyle('SBody', parent=styles['Normal'], fontName='Helvetica', fontSize=10, textColor=colors.HexColor("#1e293b"), leading=15, spaceAfter=8)
-    bullet = ParagraphStyle('SBullet', parent=body, leftIndent=16, bulletIndent=4)
+    h1 = ParagraphStyle('SH1', parent=styles['Heading1'], fontName=FONT_BOLD, fontSize=15, textColor=colors.HexColor("#1e1b4b"), spaceAfter=6)
+    h2 = ParagraphStyle('SH2', parent=styles['Heading2'], fontName=FONT_BOLD, fontSize=11, textColor=colors.HexColor("#4338ca"), spaceAfter=6, spaceBefore=14)
+    meta = ParagraphStyle('SMeta', parent=styles['Normal'], fontName=FONT_NAME, fontSize=9, textColor=colors.HexColor("#64748b"), spaceAfter=2)
+    body = ParagraphStyle('SBody', parent=styles['Normal'], fontName=FONT_NAME, fontSize=10, textColor=colors.HexColor("#1e293b"), leading=15, spaceAfter=8)
+    bullet = ParagraphStyle('SBullet', parent=body, fontName=FONT_NAME, leftIndent=16, bulletIndent=4)
 
     elements = []
     elements.append(Paragraph(f"<b>{title}</b>", h1))

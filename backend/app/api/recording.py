@@ -217,20 +217,23 @@ async def run_ai_pipeline(mid, mtype, path, title, mdate, mtime, folder_id, pare
         _update_stage(mid, mtype, "completed") # Discussion Summary
         logger.info(f"[STAGE 6/6] Syncing intelligence assets...")
         
-        # Dashboard Autofill: Use the point-wise brief summary
-        discussion_update = {"summary_text": ai_results['brief_summary']}
+        # Dashboard Autofill: Use the detailed formatted narrative summary
+        # This replaces the old short point-wise brief summary
+        detailed_summary = ai_results.get('formatted_summary', 'Detailed summary not available.')
+        discussion_update = {"summary_text": detailed_summary}
+        
         if mtype == "BR":
             existing = SheetsDB.get_by_field("BR_Discussions", "meeting_id", mid)
             if existing: 
                 SheetsDB.update_row("BR_Discussions", int(existing[0]['id']), discussion_update)
             else: 
-                SheetsDB.append_row("BR_Discussions", {"meeting_id": mid, "summary_text": ai_results['brief_summary']})
+                SheetsDB.append_row("BR_Discussions", {"meeting_id": mid, "summary_text": detailed_summary})
         else:
             existing = SheetsDB.get_by_field("Discussions", "meeting_id", mid)
             if existing: 
                 SheetsDB.update_row("Discussions", int(existing[0]['id']), discussion_update)
             else: 
-                SheetsDB.append_row("Discussions", {"meeting_id": mid, "summary_text": ai_results['brief_summary']})
+                SheetsDB.append_row("Discussions", {"meeting_id": mid, "summary_text": detailed_summary})
 
         _update_stage(mid, mtype, "completed")
         logger.info(f"✨ AI PIPELINE FULLY COMPLETED FOR '{title}' (ID: {mid})")
