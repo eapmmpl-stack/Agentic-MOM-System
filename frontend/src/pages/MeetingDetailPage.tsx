@@ -492,7 +492,7 @@ export default function MeetingDetailPage() {
               className="text-[13px] text-slate-700 dark:text-slate-300 leading-relaxed space-y-2"
               dangerouslySetInnerHTML={{ 
                 __html: (meeting.discussion.summary_text || "")
-                  .replace(/\*\*(.*?)\*\*/g, '<span class="font-extrabold text-slate-900 dark:text-white">$1</span>')
+                  .replace(/\*\*\s*(.*?)\s*\*\*/gs, '<b class="font-extrabold text-slate-900 dark:text-white">$1</b>')
                   .replace(/\n/g, '<br/>')
               }} 
             />

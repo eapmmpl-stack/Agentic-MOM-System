@@ -310,7 +310,7 @@ export default function BRDetailPage() {
                         className="text-[14px] text-slate-700 dark:text-slate-300 leading-relaxed font-medium bg-slate-50 dark:bg-white/5 p-4 rounded-xl border border-slate-100 dark:border-slate-800 space-y-2"
                         dangerouslySetInnerHTML={{ 
                             __html: (meeting.discussion.summary_text || "")
-                                .replace(/\*\*(.*?)\*\*/g, '<span class="font-extrabold text-slate-900 dark:text-white">$1</span>')
+                                .replace(/\*\*\s*(.*?)\s*\*\*/gs, '<b class="font-extrabold text-slate-900 dark:text-white">$1</b>')
                                 .replace(/\n/g, '<br/>')
                         }} 
                     />

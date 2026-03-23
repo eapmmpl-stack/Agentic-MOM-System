@@ -114,6 +114,18 @@ def generate_meeting_pdf(meeting) -> tuple:
         ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#cbd5e1")),
     ])
 
+    def clean_markdown_pdf(text: str) -> str:
+        """Helper to convert **bold** to <b>bold</b> for ReportLab."""
+        import re as _re
+        if not text: return ""
+        # Handle **bold** (Robust regex)
+        text = _re.sub(r"\*\*\s*(.*?)\s*\*\*", r"<b>\1</b>", text)
+        # Strip stray markdown symbols
+        text = text.replace('###', '').replace('##', '').replace('# ', '')
+        # Basic character cleanup (emojis/boxes that cause errors in Helvetica)
+        text = _re.sub(r'[^\x00-\x7F\u0900-\u097F₹\u2022\s]', '', text)
+        return text.strip()
+
     elements = []
 
     # Determine Document Title and Prefix
@@ -176,7 +188,7 @@ def generate_meeting_pdf(meeting) -> tuple:
     if meeting.discussion and meeting.discussion.summary_text:
         for point in meeting.discussion.summary_text.split('\n'):
             if point.strip():
-                elements.append(Paragraph(point.strip(), normal_style))
+                elements.append(Paragraph(clean_markdown_pdf(point.strip()), normal_style))
     else:
         elements.append(Paragraph("No discussion summary recorded.", normal_style))
     elements.append(Spacer(1, 10))
