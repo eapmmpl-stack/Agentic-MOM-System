@@ -140,9 +140,9 @@ class AIService:
         logger.info(f"📊 [DEBUG] Chunking transcript into {len(chunks)} segments.")
         
         map_prompt = ChatPromptTemplate.from_template(
-            "Extract ALL significant discussion points, technical details, numbers, and decisions from this meeting segment. "
-            "Don't just provide highlights; capture as much context as possible. "
-            "The transcript may contain Hindi, English, or Hinglish (mixed Hindi-English). "
+            "Extract significant discussion points, technical details, numbers, and decisions from this meeting segment. "
+            "Focus on context and clarity while capturing essential information. "
+            "Note: The transcript may contain Hindi, English, or Hinglish (mixed Hindi-English). "
             "Understand the context carefully and provide the output in professional English. "
             "\n\nSegment:\n{text}"
         )
@@ -171,17 +171,16 @@ class AIService:
         # 3. Beautify Stage (Formatted Narrative Summary)
         logger.info("✨ [DEBUG] Generating well-formatted Final Summary report...")
         beautify_prompt = ChatPromptTemplate.from_template(
-            "Create an EXTENSIVE STRATEGIC INTELLIGENCE BRIEFING report in English based on these meeting summaries. "
+            "Create a COMPREHENSIVE STRATEGIC INTELLIGENCE BRIEFING report in English based on these meeting summaries. "
             "The discussion may have been in Hindi/Hinglish; focus on a rich, flowing narrative in professional English. "
             "\n\nCRITICAL INSTRUCTIONS: "
-            "1. DO NOT over-summarize; provide detailed explanations for every major topic. "
+            "1. Aim for a balanced length (approx. 300-400 words total for the summary). "
             "2. Use Markdown headings (##) for each main topic. "
-            "3. Use **Bold Text** for key decisions, amounts, and critical milestones. "
-            "4. Include a dedicated 'STRATEGIC RECOMMENDATIONS & TASKS' section at the end. "
-            "5. DO NOT use generic placeholders like [Your Name], [Your Position], [Company Name], or [Insert Date]. "
-            "6. DO NOT include a signature or contact section at the end. "
-            "7. Start directly with the overview or highlights. "
-            "8. Use Markdown styles moderately for high readability."
+            "3. Use **Bold Text** for key decisions and milestones. "
+            "4. Include a 'RECOMMENDATIONS & TASKS' section at the end. "
+            "5. NO EMOJIS OR SYMBOLS: Strictly avoid using icons, checkboxes, or emojis; use simple dashes (-) for bullets. "
+            "6. DO NOT use generic placeholders like [Your Name] or [Company Name]. "
+            "7. Start directly with the overview or highlights."
             "\n\nSummaries:\n{summaries}"
         )
         beautify_chain = beautify_prompt | llm | StrOutputParser()
@@ -190,15 +189,14 @@ class AIService:
         # 4. Dashboard Stage (Short Point-wise Summary)
         logger.info("📊 [DEBUG] Extracting concise dashboard summary points...")
         dashboard_prompt = ChatPromptTemplate.from_template(
-            "Generate a DENSE, LONG-FORM DISCUSSION SUMMARY report for a dashboard view based on these summaries. "
-            "Do not just provide 5-8 points; create a detailed narrative of the entire conversation. "
-            "The report should be structured with topic-wise sections. "
-            "Include a section at the end titled 'AI SUGGESTED TASKS' listing specific instructions, responsible parties (if mentioned), and next steps. "
+            "Generate a BALANCED LONG-FORM DISCUSSION SUMMARY report for a dashboard view based on these summaries. "
+            "Create a clear narrative of the conversation, structured with topic-wise sections. "
+            "Include a section at the end titled 'AI SUGGESTED TASKS' listing instructions and responsible parties. "
             "\n\nCRITICAL INSTRUCTIONS: "
             "1. Return the response in PLAIN TEXT but use simple structure (headers, dashes for bullets). "
-            "2. Capture nuance, debates, and context—not just conclusions. "
-            "3. Ensure the summary is at least 300-500 words for detailed meetings. "
-            "4. Do NOT use any Markdown formatting like bolding (**), italics (*), or hashtags (#) in this specific response.\n\nSummaries:\n{summaries}"
+            "2. Capture nuance and context efficiently—aim for 250-400 words total. "
+            "3. NO SYMBOLS: Do NOT use hashtags (#), bolding (**), italics (*), checkboxes ( [ ] ) or emojis. Use only simple text and dashes (-) for bullet points."
+            "\n\nSummaries:\n{summaries}"
         )
         dashboard_chain = dashboard_prompt | llm | StrOutputParser()
         brief_summary = await dashboard_chain.ainvoke({"summaries": combined_summaries_text})

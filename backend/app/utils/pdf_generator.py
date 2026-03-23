@@ -57,7 +57,11 @@ def clean_markdown(text: str) -> str:
     # 3. Basic Markdown to ReportLab HTML tags
     # Convert **bold** to <b>bold</b> (non-greedy)
     text = re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", text)
-        
+    
+    # 4. Strip emojis and problematic Unicode symbols that cause boxes
+    # Keep: ASCII (0-127), Devanagari (Hindi), Rupee symbol
+    text = re.sub(r'[^\x00-\x7F\u0900-\u097F₹\u2022\s]', '', text)
+    
     return text.strip()
 
 # ──────────────────────────────────────────────────────────────────────
@@ -153,8 +157,9 @@ def generate_any_pdf(title: str, subtitle: str, content: str) -> bytes:
     elements.append(Spacer(1, 20))
     for line in content.split('\n'):
         if line.strip():
-            if line.strip().startswith('•') or line.strip().startswith('- '):
-                elements.append(Paragraph(line.strip(), body))
+            if line.strip().startswith('•') or line.strip().startswith('- ') or line.strip().startswith('* '):
+                clean = re.sub(r'^[\-\*\•]\s*', '', line.strip()).strip()
+                elements.append(Paragraph(f"- {clean_markdown(clean)}", body))
             elif line.strip().isupper() and len(line) < 50:
                 elements.append(Paragraph(f"<b>{line.strip()}</b>", h2))
             else:
@@ -436,9 +441,10 @@ def generate_summary_pdf(title: str, date: str, summary_text: str) -> bytes:
             elements.append(Paragraph(f"<b>{stripped.lstrip('#').strip()}</b>", h2))
         elif stripped.isupper() and len(stripped) < 60:
             elements.append(Paragraph(f"<b>{stripped}</b>", h2))
-        elif stripped.startswith('•') or stripped.startswith('- ') or stripped.startswith('* '):
-            clean = stripped.lstrip('•-* ').strip()
-            elements.append(Paragraph(f"● {clean}", bullet))
+        elif stripped.startswith('- ') or stripped.startswith('* ') or stripped.startswith('•'):
+            # Standard bullet point
+            clean = re.sub(r'^[\-\*\•]\s*', '', stripped).strip()
+            elements.append(Paragraph(f"- {clean_markdown(clean)}", bullet))
         elif stripped[0].isdigit() and '.' in stripped[:4]:
             elements.append(Paragraph(stripped, bullet))
         else:
