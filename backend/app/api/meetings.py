@@ -2,7 +2,12 @@
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import StreamingResponse
+import os
+import logging
 import io
+from datetime import datetime
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
@@ -10,9 +15,12 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch, cm
 from reportlab.lib.utils import ImageReader
 from reportlab.lib.enums import TA_RIGHT, TA_LEFT, TA_CENTER
-import os
-import logging
-from datetime import datetime
+
+# Register Noto Sans for Unicode support (Rupee ₹, etc.)
+FONT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'utils')
+pdfmetrics.registerFont(TTFont('NotoSans', os.path.join(FONT_DIR, 'NotoSans-Regular.ttf')))
+pdfmetrics.registerFont(TTFont('NotoSans-Bold', os.path.join(FONT_DIR, 'NotoSans-Bold.ttf')))
+pdfmetrics.registerFontFamily('NotoSans', normal='NotoSans', bold='NotoSans-Bold')
 
 from app.schemas.schemas import MeetingCreate, MeetingResponse, MeetingListResponse, MeetingMOMUpdate, RescheduleMeeting, GlobalTaskResponse
 from app.services.meeting_service import MeetingService
@@ -59,12 +67,12 @@ def draw_header_footer(canvas, doc):
         canvas.drawString(110, 757, "On Autopilot")
 
     canvas.setFillColor(colors.HexColor("#1e293b"))
-    canvas.setFont("Helvetica-Bold", 12)
+    canvas.setFont("NotoSans-Bold", 12)
     canvas.drawRightString(565, 790, settings.CLIENT_NAME.upper())
-    canvas.setFont("Helvetica", 10)
+    canvas.setFont("NotoSans", 10)
     canvas.setFillColor(colors.HexColor("#4f46e5"))
     # Render full address with wrapping (Right Aligned)
-    addr_style = ParagraphStyle('AddrStyle', fontName='Helvetica', fontSize=9, textColor=colors.HexColor("#4f46e5"), leading=11, alignment=TA_RIGHT)
+    addr_style = ParagraphStyle('AddrStyle', fontName='NotoSans', fontSize=9, textColor=colors.HexColor("#4f46e5"), leading=11, alignment=TA_RIGHT)
     addr_p = Paragraph(settings.CLIENT_ADDRESS, addr_style)
     w, h = addr_p.wrap(250, 100) # Width of 250, max height 100
     addr_p.drawOn(canvas, 565 - w, 785 - h)
@@ -74,15 +82,15 @@ def draw_header_footer(canvas, doc):
     canvas.line(30, 735, 565, 735)
 
     canvas.setFillColor(colors.HexColor("#000000"))
-    canvas.setFont("Helvetica-Bold", 12)
+    canvas.setFont("NotoSans-Bold", 12)
     canvas.drawString(30, 45, "HR Department")
-    canvas.setFont("Helvetica-Bold", 10)
+    canvas.setFont("NotoSans-Bold", 10)
     canvas.setFillColor(colors.HexColor("#475569"))
     canvas.drawString(30, 32, settings.CLIENT_NAME)
 
     # Powered by Botivate (Watermark)
     if settings.SHOW_BOTIVATE_BRANDING:
-        canvas.setFont("Helvetica-Oblique", 8)
+        canvas.setFont("NotoSans", 8)
         canvas.setFillColor(colors.HexColor("#94a3b8"))
         canvas.drawRightString(A4[0] - 30, 32, settings.BOTIVATE_SIGNATURE)
 
@@ -97,12 +105,12 @@ def generate_meeting_pdf(meeting) -> tuple:
     doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=120, bottomMargin=120)
 
     styles = getSampleStyleSheet()
-    h1_style = ParagraphStyle('BotivateH1', parent=styles['Heading1'], fontName='Helvetica-Bold', fontSize=14, textColor=colors.HexColor("#1e293b"), spaceAfter=12)
-    h2_style = ParagraphStyle('BotivateH2', parent=styles['Heading2'], fontName='Helvetica-Bold', fontSize=11, textColor=colors.HexColor("#334155"), spaceAfter=8, spaceBefore=12)
-    normal_style = ParagraphStyle('BotivateNormal', parent=styles['Normal'], fontName='Helvetica', fontSize=10, textColor=colors.HexColor("#475569"), leading=14, spaceAfter=6)
+    h1_style = ParagraphStyle('BotivateH1', parent=styles['Heading1'], fontName='NotoSans-Bold', fontSize=14, textColor=colors.HexColor("#1e293b"), spaceAfter=12)
+    h2_style = ParagraphStyle('BotivateH2', parent=styles['Heading2'], fontName='NotoSans-Bold', fontSize=11, textColor=colors.HexColor("#334155"), spaceAfter=8, spaceBefore=12)
+    normal_style = ParagraphStyle('BotivateNormal', parent=styles['Normal'], fontName='NotoSans', fontSize=10, textColor=colors.HexColor("#475569"), leading=14, spaceAfter=6)
 
     table_style = TableStyle([
-        ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
+        ('FONTNAME', (0,0), (-1,-1), 'NotoSans'),
         ('FONTSIZE', (0,0), (-1,-1), 10),
         ('TEXTCOLOR', (0,0), (-1,-1), colors.HexColor("#334155")),
         ('ALIGN', (0,0), (-1,-1), 'LEFT'),
@@ -110,7 +118,7 @@ def generate_meeting_pdf(meeting) -> tuple:
         ('BOTTOMPADDING', (0,0), (-1,-1), 8),
         ('TOPPADDING', (0,0), (-1,-1), 8),
         ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#e2e8f0")),
-        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTNAME', (0,0), (-1,0), 'NotoSans-Bold'),
         ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#cbd5e1")),
     ])
 
