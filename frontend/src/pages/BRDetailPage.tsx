@@ -311,6 +311,8 @@ export default function BRDetailPage() {
                         dangerouslySetInnerHTML={{ 
                             __html: (meeting.discussion.summary_text || "")
                                 .replace(/\*\*\s*(.*?)\s*\*\*/gs, '<b class="font-extrabold text-slate-900 dark:text-white">$1</b>')
+                                .replace(/^###\s*(.*)$/gm, '<h3 class="text-md font-extrabold text-brand-600 dark:text-brand-400 mt-4 mb-2 uppercase tracking-wide">$1</h3>')
+                                .replace(/^##\s*(.*)$/gm, '<h2 class="text-lg font-extrabold text-brand-700 dark:text-brand-300 mt-5 mb-2 uppercase tracking-tight">$1</h2>')
                                 .replace(/\n/g, '<br/>')
                         }} 
                     />
