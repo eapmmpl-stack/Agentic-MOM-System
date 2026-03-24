@@ -180,13 +180,13 @@ class AIService:
         beautify_prompt = ChatPromptTemplate.from_template(
             "Create a COMPREHENSIVE STRATEGIC INTELLIGENCE BRIEFING report in English. "
             "Use the provided Official Agenda to organize the report: \n{agenda}\n\n"
-            "CRITICAL INSTRUCTIONS: "
-            "1. Focus on a rich, flowing narrative in professional English. "
-            "2. STRATEGIC MAGNITUDE: Preserve high-value metrics (e.g., 2 Crore Investment) but discard minor conversational noise (e.g., 400g calculation errors). Focus on the CONCLUSION, not the dialogue process. "
-            "3. AIM FOR OUTCOMES: If a topic was on the agenda but not clarified, mention it as 'Postponed' or 'Requires Follow-up'. "
-            "4. Layout: Approx. 300-400 words. Use Markdown headings (##) for main topics. "
-            "5. NO EMOJIS: Use simple dashes (-) for bullets. "
-            "6. DO NOT use generic placeholders like [Your Name]. "
+            "CRITICAL FORMATTING INSTRUCTIONS:\n"
+            "1. HIERARCHY: Every major topic/section must start with a **BOLD AND UPPERCASE HEADER** followed by a colon (e.g., **AI INFRASTRUCTURE INVESTMENT PROPOSAL:**). \n"
+            "2. FORMATTED BULLETS: All descriptions, details, and metrics under each header must be in normal (non-bold) bullet points (-).\n"
+            "3. MANDATORY SECTION: You MUST include a final section titled **RECOMMENDED TASKS & NEXT STEPS:** with specific actionable items.\n"
+            "4. STRATEGIC MAGNITUDE: Preserve high-value metrics (e.g., ₹2 Crores) but discard minor conversational noise. Focus on the CONCLUSION.\n"
+            "5. NO EMOJIS: Use simple dashes (-) for bullets.\n"
+            "6. NO PARAGRAPHS: Keep the briefing crisp and point-wise where possible.\n"
             "\n\nSummaries:\n{summaries}"
         )
         beautify_chain = beautify_prompt | llm | StrOutputParser()
@@ -197,12 +197,14 @@ class AIService:
         dashboard_prompt = ChatPromptTemplate.from_template(
             "Generate a HIGH-IMPACT, POINT-WISE PROFESSIONAL SUMMARY for a web dashboard. "
             "Reference Official Agenda: {agenda}\n\n"
-            "CRITICAL INSTRUCTIONS: "
-            "1. NO PARAGRAPHS: Strictly avoid writing any paragraphs. Use only bullet points (-). "
-            "2. HEADERS: Use BOLD UPPERCASE HEADERS (e.g., **CONTEXT:**, **DECISIONS:, **TASKS EXTRACTED:). "
-            "3. STRATEGIC EXTRACTION: Prioritize tasks and decisions that match the agenda. Only list items that were EXPLICITLY discussed. "
-            "4. MATERIALITY: Discard noise from process/dialogue. Only record final agreed-upon outcomes and high-value figures. "
-            "5. NO HALLUCINATION: If a task wasn't confirmed, don't invent it. "
+            "CRITICAL FORMATTING INSTRUCTIONS:\n"
+            "1. BOLD HEADERS: Every main debate/topic/section header must be **BOLD AND UPPERCASE** (e.g., **CONFORMANCE & AUDIT:**, **FINANCIAL ALLOCATION:**).\n"
+            "2. MANDATORY SECTIONS: You MUST explicitly include **DECISIONS MADE:** and **RECOMMENDED TASKS:** sections.\n"
+            "3. NORMAL BULLETS: All descriptive points under headers must be plain text bullet points (-). DO NOT bold the bullet point text itself.\n"
+            "4. POINT-WISE ONLY: No paragraphs. Use a structured list for every topic.\n"
+            "5. STRATEGIC MAGNITUDE: Record final agreed-upon figures and high-value metrics (e.g. ₹2 Crores). Discard process-level noise.\n"
+            "6. NO HALLUCINATION: Only list items that were EXPLICITLY discussed.\n"
+            "7. NO EMOJIS: Use only plain text and simple dashes (-).\n"
             "\n\nSummaries:\n{summaries}"
         )
         dashboard_chain = dashboard_prompt | llm | StrOutputParser()
