@@ -324,7 +324,7 @@ export default function MeetingDetailPage() {
                   {item.icon}
                   <p className="text-[10px] font-bold uppercase tracking-wide">{item.label}</p>
                 </div>
-                <p className="text-[13px] font-semibold text-white">{item.value}</p>
+                <p className="text-[13px] font-semibold text-white break-all">{item.value}</p>
               </div>
             ))}
           </div>
