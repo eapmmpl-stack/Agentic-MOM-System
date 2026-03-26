@@ -256,12 +256,13 @@ export default function BRDetailPage() {
                 <RecordingOverlay 
                     meetingId={meeting.id} 
                     meetingType="BR" 
+                    meetingMode={meeting.meeting_mode}
                     onComplete={refreshData} 
                 />
             )}
 
             {/* ── Processing Progress Banner ── */}
-            {(meeting.status === 'Processing' || meeting.status === 'Scheduled') && (
+            {((meeting.status === 'Processing' && !meeting.ai_summary_link) || meeting.status === 'Scheduled') && (
                 <ProcessingBanner
                     meetingId={meeting.id}
                     meetingType="BR"
@@ -288,14 +289,14 @@ export default function BRDetailPage() {
                         <p className="text-[11px] font-bold uppercase tracking-widest text-brand-200">Details</p>
                     </div>
                     <h2 className="text-2xl font-extrabold mb-4">{meeting.title}</h2>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                    <div className="flex flex-wrap gap-3">
                         {metaItems.filter(i => i.value).map((item, idx) => (
-                            <div key={idx} className="bg-white/10 rounded-xl px-3.5 py-3 backdrop-blur-sm">
+                            <div key={idx} className="flex-1 min-w-[200px] bg-white/10 rounded-xl px-3.5 py-3 backdrop-blur-sm">
                                 <div className="flex items-center gap-1.5 text-brand-200 mb-1">
                                     {item.icon}
                                     <p className="text-[10px] font-bold uppercase tracking-wide">{item.label}</p>
                                 </div>
-                                <p className="text-[13px] font-semibold text-white">{item.value}</p>
+                                <p className="text-[13px] font-semibold text-white break-all">{item.value}</p>
                             </div>
                         ))}
                     </div>
@@ -305,9 +306,16 @@ export default function BRDetailPage() {
             {/* ── Resolution Details ── */}
             {meeting.discussion && (
                 <Section title="Resolution Wording" icon={<CheckCircleIcon className="w-[18px] h-[18px]" />}>
-                    <p className="text-[14px] text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed font-medium bg-slate-50 dark:bg-white/5 p-4 rounded-xl border border-slate-100 dark:border-slate-800">
-                        {meeting.discussion.summary_text}
-                    </p>
+                    <div 
+                        className="text-[14px] text-slate-700 dark:text-slate-300 leading-relaxed font-medium bg-slate-50 dark:bg-white/5 p-4 rounded-xl border border-slate-100 dark:border-slate-800 space-y-2"
+                        dangerouslySetInnerHTML={{ 
+                            __html: (meeting.discussion.summary_text || "")
+                                .replace(/\*\*\s*(.*?)\s*\*\*/gs, '<b class="font-extrabold text-slate-900 dark:text-white">$1</b>')
+                                .replace(/^###\s*(.*)$/gm, '<h3 class="text-md font-extrabold text-brand-600 dark:text-brand-400 mt-4 mb-2 uppercase tracking-wide">$1</h3>')
+                                .replace(/^##\s*(.*)$/gm, '<h2 class="text-lg font-extrabold text-brand-700 dark:text-brand-300 mt-5 mb-2 uppercase tracking-tight">$1</h2>')
+                                .replace(/\n/g, '<br/>')
+                        }} 
+                    />
                 </Section>
             )}
 

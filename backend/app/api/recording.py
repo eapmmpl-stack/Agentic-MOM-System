@@ -3,6 +3,10 @@ import os
 import shutil
 import uuid
 import logging
+import threading
+from datetime import datetime
+from pydantic import BaseModel
+
 from app.services.ai_service import AIService
 from app.services.google_sheets_service import upload_to_drive, SheetsDB, ensure_subfolder
 from app.services.br_meeting_service import BRService
@@ -23,26 +27,32 @@ PIPELINE_STAGES = {
     "generating_pdfs": {"step": 4, "total": 6, "label": "Creating intelligence reports..."},
     "uploading_assets": {"step": 5, "total": 6, "label": "Uploading assets to Drive..."},
     "finalizing": {"step": 6, "total": 6, "label": "Finalizing & syncing data..."},
-    "completed": {"step": 6, "total": 6, "label": "Processing complete!"},
+    "completed": {"step": 6, "total": 6, "label": "Processing Complete"},
     "failed": {"step": 0, "total": 6, "label": "Processing failed."},
 }
 
+pipeline_tracker: dict = {}
+
 def _update_stage(mid: int, mtype: str, stage: str):
     """Update processing_stage on the meeting row for frontend polling."""
+    tracker_key = f"{mtype}_{mid}"
+    pipeline_tracker[tracker_key] = stage
+
     sheet = "BR_Meetings" if mtype == "BR" else "Meetings"
     SheetsDB.update_row(sheet, mid, {"processing_stage": stage})
     logger.info(f"[PIPELINE] Stage updated -> {stage} for meeting {mid}")
 
-
 @router.get("/status/{meeting_id}")
 async def get_processing_status(meeting_id: int, meeting_type: str = "Regular"):
     """Returns the current processing stage of a meeting's AI pipeline."""
+    tracker_key = f"{meeting_type}_{meeting_id}"
     sheet = "BR_Meetings" if meeting_type == "BR" else "Meetings"
     m = SheetsDB.get_by_id(sheet, meeting_id)
     if not m:
         raise HTTPException(status_code=404, detail="Meeting not found")
     
-    stage_key = m.get("processing_stage", "")
+    # Overwrite with real-time memory tracker if available to prevent Sheets DB lag
+    stage_key = pipeline_tracker.get(tracker_key) or m.get("processing_stage", "")
     stage_info = PIPELINE_STAGES.get(stage_key, {"step": 0, "total": 6, "label": "Waiting..."})
     
     return {
@@ -116,13 +126,14 @@ async def process_meeting_recording(
         str(meeting.date),
         str(meeting.time),
         dfid,
-        parent_root
+        parent_root,
+        meeting.agenda_items or []
     )
     
     logger.info(f"AI Pipeline triggered in background for meeting {meeting_id}")
     return {"status": "Processing started", "detail": "Audio uploaded and AI pipeline triggered."}
 
-async def run_ai_pipeline(mid, mtype, path, title, mdate, mtime, folder_id, parent_root):
+async def run_ai_pipeline(mid, mtype, path, title, mdate, mtime, folder_id, parent_root, agenda_items=None):
     try:
         logger.info(f">>> STARTING AI PIPELINE for '{title}' (Meeting ID: {mid})")
         
@@ -132,10 +143,17 @@ async def run_ai_pipeline(mid, mtype, path, title, mdate, mtime, folder_id, pare
         transcript_text = await AIService.transcribe_audio(path)
         logger.info(f"[STAGE 1/6] Transcription complete. Length: {len(transcript_text.split())} words.")
         
-        # 2. Local Summarization (FLAN-T5) with Chunk Logs
+        # Format agenda for AI
+        agenda_text = ""
+        if agenda_items:
+            agenda_text = "\n".join([f"- {a.topic}: {a.description or ''}" for a in agenda_items])
+        else:
+            agenda_text = "No specific agenda provided."
+
+        # 2. Local Summarization (Hierarchical) with Agenda Context
         _update_stage(mid, mtype, "summarizing")
-        logger.info(f"[STAGE 2/6] Starting local hierarchical summarization...")
-        ai_results = await AIService.summarize_transcript(transcript_text)
+        logger.info(f"[STAGE 2/6] Starting hierarchical summarization with Agenda context...")
+        ai_results = await AIService.summarize_transcript(transcript_text, agenda=agenda_text)
         logger.info(f"[STAGE 2/6] Summarization complete.")
         
         # 3. Prepare 3 separate PDF files for Drive (MOM report is handled manually by Admin)
@@ -207,7 +225,7 @@ async def run_ai_pipeline(mid, mtype, path, title, mdate, mtime, folder_id, pare
         _update_stage(mid, mtype, "completed") # Discussion Summary
         logger.info(f"[STAGE 6/6] Syncing intelligence assets...")
         
-        # Dashboard Autofill: Use the point-wise brief summary
+        # Dashboard Autofill: Use the optimized brief summary (UPPERCASE Headers + Precise Tasks)
         discussion_update = {"summary_text": ai_results['brief_summary']}
         if mtype == "BR":
             existing = SheetsDB.get_by_field("BR_Discussions", "meeting_id", mid)

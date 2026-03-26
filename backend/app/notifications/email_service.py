@@ -276,7 +276,9 @@ class EmailService:
     @staticmethod
     async def send_meeting_summary(to_email: str, recipient_name: str, meeting_title: str, is_absent: bool, summary: str, task_html: str, pdf_data: Optional[bytes] = None, pdf_name: Optional[str] = None, is_br: bool = False, pdf_link: Optional[str] = None):
         subject = f"Official Resolution Wording & MOM: {meeting_title}" if is_br else f"MOM & Summary: {meeting_title}"
-        
+        import re as _re
+        clean_summary = _re.sub(r"\*\*\s*(.*?)\s*\*\*", r"<b>\1</b>", summary) if summary else ""
+
         if is_absent:
             greeting_box = f"""
             <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 12px 16px; margin-bottom: 24px;">
@@ -319,7 +321,7 @@ class EmailService:
             
             <h3 style="color: #1e293b; font-size: 16px; margin: 0 0 12px; padding-bottom: 8px; border-bottom: 1px solid #e2e8f0;">{discussion_label}</h3>
             <div style="background-color: #f8fafc; padding: 16px; border-radius: 6px; margin-bottom: 24px; border: 1px solid #e2e8f0;">
-                <p style="margin: 0; font-size: 14px; color: #334155; line-height: 1.6; white-space: pre-wrap;">{summary or 'No formal wording documented.'}</p>
+                <p style="margin: 0; font-size: 14px; color: #334155; line-height: 1.6; white-space: pre-wrap;">{clean_summary or 'No formal wording documented.'}</p>
             </div>
             
             <h3 style="color: #1e293b; font-size: 16px; margin: 0 0 12px; padding-bottom: 8px; border-bottom: 1px solid #e2e8f0;">Action Mandates</h3>

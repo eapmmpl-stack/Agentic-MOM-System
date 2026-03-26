@@ -12,10 +12,13 @@ import api from '../api';
 interface Props {
     meetingId: number;
     meetingType: 'Regular' | 'BR';
+    meetingMode?: string;
     onComplete?: () => void;
 }
 
-const RecordingOverlay: React.FC<Props> = ({ meetingId, meetingType, onComplete }) => {
+const RecordingOverlay: React.FC<Props> = ({ meetingId, meetingType, meetingMode, onComplete }) => {
+    const isOnline = meetingMode === 'Online';
+
     const [isRecording, setIsRecording] = useState(false);
     const [isPaused, setIsPaused] = useState(false);
     const [time, setTime] = useState(0);
@@ -53,12 +56,17 @@ const RecordingOverlay: React.FC<Props> = ({ meetingId, meetingType, onComplete 
 
     // Timer Logic
     useEffect(() => {
+        let timer: number | null = null;
+        
         if (isRecording && !isPaused) {
-            timerRef.current = window.setInterval(() => setTime(prev => prev + 1), 1000);
+            timer = window.setInterval(() => setTime(prev => prev + 1), 1000);
         } else {
-            if (timerRef.current) clearInterval(timerRef.current);
+            if (timer) clearInterval(timer);
         }
-        return () => { if (timerRef.current) clearInterval(timerRef.current); };
+        
+        return () => { 
+            if (timer) clearInterval(timer); 
+        };
     }, [isRecording, isPaused]);
 
     const formatTime = (seconds: number) => {
@@ -70,12 +78,60 @@ const RecordingOverlay: React.FC<Props> = ({ meetingId, meetingType, onComplete 
 
     const startRecording = async () => {
         try {
-            console.log('[Mic Debug] Starting with Device:', selectedDeviceId);
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                audio: { 
-                    deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined,
-                } 
-            });
+            let stream: MediaStream;
+            let displayStream: MediaStream | null = null;
+            
+            if (isOnline) {
+                // Online meeting -> Request Screen/System Audio
+                toast.loading("Click 'Start', and IF shown, CHECK 'Share Audio'!!", { duration: 6000 });
+                
+                try {
+                    // Modern constraints to nudge the browser
+                    displayStream = await navigator.mediaDevices.getDisplayMedia({
+                        video: true, 
+                        audio: {
+                            echoCancellation: false,
+                            noiseSuppression: false,
+                            autoGainControl: false,
+                            // @ts-ignore - experimental constraint to help with audio capture
+                            selfBrowserSurface: "include",
+                            systemAudio: "include"
+                        }
+                    });
+                    
+                    const audioTracks = displayStream.getAudioTracks();
+                    
+                    if (audioTracks.length === 0) {
+                        displayStream.getTracks().forEach(t => t.stop());
+                        
+                        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+                        if (isMobile) {
+                            toast.error("MOBILE LIMIT: Your phone blocks web browsers from recording internal audio. (Inbuilt recorders are native apps, they have more power).", { duration: 10000 });
+                            toast("Tip: Use your Mobile's Inbuilt Recorder and then 'Upload' the file!", { icon: '💡', duration: 10000 });
+                        } else {
+                            toast.error("CAPTURE FAILED: System Audio checkmark was NOT checked!");
+                        }
+                        return;
+                    }
+                    
+                    // Force System-Only Audio (No Mic)
+                    stream = new MediaStream([audioTracks[0]]);
+                    
+                    const videoTrack = displayStream.getVideoTracks()[0];
+                    if (videoTrack) videoTrack.onended = () => stopRecording();
+                } catch (e) {
+                    console.error("Capture Error:", e);
+                    toast.error("Process Cancelled or not supported by this browser.");
+                    return;
+                }
+            } else {
+                // Offline meeting -> Capture MICROPHONE
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: { 
+                        deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined,
+                    } 
+                });
+            }
             
             const options = { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 128000 };
             mediaRecorderRef.current = new MediaRecorder(stream, options);
@@ -84,17 +140,20 @@ const RecordingOverlay: React.FC<Props> = ({ meetingId, meetingType, onComplete 
             mediaRecorderRef.current.ondataavailable = (e) => {
                 if (e.data.size > 0) {
                     audioChunksRef.current.push(e.data);
-                    console.log(`[Mic Debug] LIVE Chunk: ${e.data.size} bytes`);
                 }
             };
 
             mediaRecorderRef.current.onstop = async () => {
                 const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-                console.log('[Mic Debug] FINAL SIZE:', blob.size);
+                
+                // Stop all tracks to release hardware and remove sharing indicator
+                stream.getTracks().forEach(t => t.stop());
+                if (displayStream) displayStream.getTracks().forEach(t => t.stop());
+
                 await finalizeMeeting(blob);
             };
 
-            // Signal monitor setup
+            // Signal monitor setup (works for both Mic and System sound perfectly!)
             audioContextRef.current = new AudioContext();
             analyserRef.current = audioContextRef.current.createAnalyser();
             const source = audioContextRef.current.createMediaStreamSource(stream);
@@ -114,17 +173,20 @@ const RecordingOverlay: React.FC<Props> = ({ meetingId, meetingType, onComplete 
             mediaRecorderRef.current.start(1000);
             setIsRecording(true);
             setTime(0);
-            toast.success("Recording System Active");
+            toast.success(isOnline ? "System audio recording started" : "Recording System Active");
         } catch (err) {
-            console.error('[Mic Debug] Start Error:', err);
-            toast.error("Microphone Error: Please check device selection.");
+            console.error('Start Error:', err);
+            if (isOnline) {
+                toast.error("Screen Share cancelled or Audio not allowed.");
+            } else {
+                toast.error("Microphone Error: Please check device selection.");
+            }
         }
     };
 
     const stopRecording = () => {
-        if (mediaRecorderRef.current) {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
             mediaRecorderRef.current.stop();
-            mediaRecorderRef.current.stream.getTracks().forEach(t => t.stop());
             if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
             setIsRecording(false);
         }
@@ -159,23 +221,25 @@ const RecordingOverlay: React.FC<Props> = ({ meetingId, meetingType, onComplete 
 
     if (!isRecording) return (
         <div className="p-4 bg-slate-50 dark:bg-white/5 rounded-3xl border border-slate-200 dark:border-white/10 flex flex-col gap-4">
-            <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-brand-500/10 flex items-center justify-center">
-                    <MicrophoneIcon className="w-5 h-5 text-brand-500" />
+            {!isOnline && (
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-brand-500/10 flex items-center justify-center">
+                        <MicrophoneIcon className="w-5 h-5 text-brand-500" />
+                    </div>
+                    <div className="flex-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Speaker Source</label>
+                        <select 
+                            value={selectedDeviceId}
+                            onChange={(e) => setSelectedDeviceId(e.target.value)}
+                            className="w-full bg-transparent text-sm font-bold outline-none dark:text-white"
+                        >
+                            {devices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || 'Default Audio Device'}</option>)}
+                        </select>
+                    </div>
                 </div>
-                <div className="flex-1">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Speaker Source</label>
-                    <select 
-                        value={selectedDeviceId}
-                        onChange={(e) => setSelectedDeviceId(e.target.value)}
-                        className="w-full bg-transparent text-sm font-bold outline-none dark:text-white"
-                    >
-                        {devices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || 'Default Audio Device'}</option>)}
-                    </select>
-                </div>
-            </div>
+            )}
             <button onClick={startRecording} className="w-full py-4 bg-brand-600 text-white rounded-2xl font-bold hover:bg-brand-700 shadow-xl shadow-brand-500/20 active:scale-95 transition-all">
-                Start Intelligence Capture
+                {isOnline ? "Start System Recording" : "Start Intelligence Capture"}
             </button>
         </div>
     );

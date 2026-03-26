@@ -16,8 +16,17 @@ from app.config import get_settings
 settings = get_settings()
 logger = logging.getLogger("pdf_generator")
 
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfbase import pdfmetrics
+
 LOGO_PATH = r"c:\Users\prabh\Desktop\MOM_AI_Assistant\B PNG.png"
 PAGE_W, PAGE_H = A4  # 595.27, 841.89
+
+# Register Noto Sans for Unicode support (Rupee ₹, etc.)
+# Note: These files must exist in app/utils/
+FONT_DIR = os.path.dirname(__file__)
+pdfmetrics.registerFont(TTFont('NotoSans', os.path.join(FONT_DIR, 'NotoSans-Regular.ttf')))
+pdfmetrics.registerFont(TTFont('NotoSans-Bold', os.path.join(FONT_DIR, 'NotoSans-Bold.ttf')))
 
 # ──────────────────────────────────────────────────────────────────────
 # HELPERS: MARKDOWN PARSING & CLEANUP
@@ -48,7 +57,11 @@ def clean_markdown(text: str) -> str:
     # 3. Basic Markdown to ReportLab HTML tags
     # Convert **bold** to <b>bold</b> (non-greedy)
     text = re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", text)
-        
+    
+    # 4. Strip emojis and problematic Unicode symbols that cause boxes
+    # Keep: ASCII (0-127), Devanagari (Hindi), Rupee symbol
+    text = re.sub(r'[^\x00-\x7F\u0900-\u097F₹\u2022\s]', '', text)
+    
     return text.strip()
 
 # ──────────────────────────────────────────────────────────────────────
@@ -83,9 +96,9 @@ def draw_header_footer(canvas, doc):
             canvas.setLineWidth(1.5)
             canvas.line(100, 760, 100, 805)
             canvas.setFillColor(colors.HexColor("#000000"))
-            canvas.setFont("Helvetica-Bold", 24)
+            canvas.setFont("NotoSans-Bold", 24)
             canvas.drawString(110, 785, "Botivate")
-            canvas.setFont("Helvetica-Oblique", 11)
+            canvas.setFont("NotoSans", 11)
             canvas.drawString(110, 770, "Powering Businesses")
             canvas.drawString(110, 757, "On Autopilot")
         except Exception as e:
@@ -93,12 +106,12 @@ def draw_header_footer(canvas, doc):
 
     # Company Info (Right)
     canvas.setFillColor(colors.HexColor("#1e293b"))
-    canvas.setFont("Helvetica-Bold", 12)
+    canvas.setFont("NotoSans-Bold", 12)
     canvas.drawRightString(565, 790, settings.CLIENT_NAME.upper())
-    canvas.setFont("Helvetica", 10)
+    canvas.setFont("NotoSans", 10)
     canvas.setFillColor(colors.HexColor("#4f46e5"))
     # Render full address with wrapping (Right Aligned)
-    addr_style = ParagraphStyle('AddrStyle', fontName='Helvetica', fontSize=9, textColor=colors.HexColor("#4f46e5"), leading=11, alignment=TA_RIGHT)
+    addr_style = ParagraphStyle('AddrStyle', fontName='NotoSans', fontSize=9, textColor=colors.HexColor("#4f46e5"), leading=11, alignment=TA_RIGHT)
     addr_p = Paragraph(settings.CLIENT_ADDRESS, addr_style)
     w, h = addr_p.wrap(250, 100) # Width of 250, max height 100
     addr_p.drawOn(canvas, 565 - w, 785 - h) 
@@ -111,13 +124,13 @@ def draw_header_footer(canvas, doc):
     # Footer Text
     canvas.setFillColor(colors.HexColor("#000000"))
     canvas.drawString(30, 45, "HR Department / Intelligence Division")
-    canvas.setFont("Helvetica-Bold", 10)
+    canvas.setFont("NotoSans-Bold", 10)
     canvas.setFillColor(colors.HexColor("#475569"))
     canvas.drawString(30, 32, settings.CLIENT_NAME)
 
     # Powered by Botivate (Watermark)
     if settings.SHOW_BOTIVATE_BRANDING:
-        canvas.setFont("Helvetica-Oblique", 8)
+        canvas.setFont("NotoSans", 8)
         canvas.setFillColor(colors.HexColor("#94a3b8"))
         canvas.drawRightString(PAGE_W - 30, 32, settings.BOTIVATE_SIGNATURE)
     
@@ -133,9 +146,9 @@ def generate_any_pdf(title: str, subtitle: str, content: str) -> bytes:
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=120, bottomMargin=120)
     styles = getSampleStyleSheet()
-    h1 = ParagraphStyle('H1', parent=styles['Heading1'], fontName='Helvetica-Bold', fontSize=14, textColor=colors.HexColor("#1e293b"), spaceAfter=12)
-    h2 = ParagraphStyle('H2', parent=styles['Heading2'], fontName='Helvetica-Bold', fontSize=11, textColor=colors.HexColor("#334155"), spaceAfter=8, spaceBefore=12)
-    body = ParagraphStyle('Body', parent=styles['Normal'], fontName='Helvetica', fontSize=10, textColor=colors.HexColor("#475569"), leading=14, spaceAfter=6)
+    h1 = ParagraphStyle('H1', parent=styles['Heading1'], fontName='NotoSans-Bold', fontSize=14, textColor=colors.HexColor("#1e293b"), spaceAfter=12)
+    h2 = ParagraphStyle('H2', parent=styles['Heading2'], fontName='NotoSans-Bold', fontSize=11, textColor=colors.HexColor("#334155"), spaceAfter=8, spaceBefore=12)
+    body = ParagraphStyle('Body', parent=styles['Normal'], fontName='NotoSans', fontSize=10, textColor=colors.HexColor("#475569"), leading=14, spaceAfter=6)
 
     elements = []
     elements.append(Paragraph(f"<b>{title.upper()}</b>", h1))
@@ -144,8 +157,9 @@ def generate_any_pdf(title: str, subtitle: str, content: str) -> bytes:
     elements.append(Spacer(1, 20))
     for line in content.split('\n'):
         if line.strip():
-            if line.strip().startswith('•') or line.strip().startswith('- '):
-                elements.append(Paragraph(line.strip(), body))
+            if line.strip().startswith('•') or line.strip().startswith('- ') or line.strip().startswith('* '):
+                clean = re.sub(r'^[\-\*\•]\s*', '', line.strip()).strip()
+                elements.append(Paragraph(f"- {clean_markdown(clean)}", body))
             elif line.strip().isupper() and len(line) < 50:
                 elements.append(Paragraph(f"<b>{line.strip()}</b>", h2))
             else:
@@ -173,9 +187,9 @@ def _transcript_header_footer(canvas, doc):
     canvas.rect(8, PAGE_H - 50, PAGE_W - 8, 50, fill=1, stroke=0)
     # Title in top bar
     canvas.setFillColor(colors.white)
-    canvas.setFont("Helvetica-Bold", 14)
+    canvas.setFont("NotoSans-Bold", 14)
     canvas.drawString(24, PAGE_H - 35, "VERBATIM TRANSCRIPT")
-    canvas.setFont("Helvetica", 9)
+    canvas.setFont("NotoSans", 9)
     canvas.drawRightString(PAGE_W - 30, PAGE_H - 25, f"{settings.CLIENT_NAME} Intelligence")
     canvas.drawRightString(PAGE_W - 30, PAGE_H - 38, f"Generated: {datetime.now().strftime('%d %b %Y, %I:%M %p')}")
     
@@ -191,12 +205,12 @@ def _transcript_header_footer(canvas, doc):
     canvas.setFillColor(colors.HexColor("#1e1b4b"))
     canvas.rect(8, 0, PAGE_W - 8, 30, fill=1, stroke=0)
     canvas.setFillColor(colors.white)
-    canvas.setFont("Helvetica", 8)
+    canvas.setFont("NotoSans", 8)
     canvas.drawString(20, 10, f"{settings.CLIENT_NAME} | Official Transcript")
     
     # Powered by Botivate (Watermark)
     if settings.SHOW_BOTIVATE_BRANDING:
-        canvas.setFont("Helvetica-Oblique", 7)
+        canvas.setFont("NotoSans", 7)
         canvas.setFillColor(colors.HexColor("#94a3b8"))
         canvas.drawRightString(PAGE_W - 70, 10, settings.BOTIVATE_SIGNATURE)
     canvas.drawRightString(PAGE_W - 20, 10, f"Page {doc.page}")
@@ -209,10 +223,10 @@ def generate_transcript_pdf(title: str, date: str, transcript_text: str) -> byte
     doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=24, rightMargin=30, topMargin=70, bottomMargin=50)
     styles = getSampleStyleSheet()
 
-    title_style = ParagraphStyle('TTitle', parent=styles['Heading1'], fontName='Helvetica-Bold', fontSize=16, textColor=colors.HexColor("#1e1b4b"), spaceAfter=4)
-    meta_style = ParagraphStyle('TMeta', parent=styles['Normal'], fontName='Helvetica', fontSize=9, textColor=colors.HexColor("#64748b"), spaceAfter=2)
+    title_style = ParagraphStyle('TTitle', parent=styles['Heading1'], fontName='NotoSans-Bold', fontSize=16, textColor=colors.HexColor("#1e1b4b"), spaceAfter=4)
+    meta_style = ParagraphStyle('TMeta', parent=styles['Normal'], fontName='NotoSans', fontSize=9, textColor=colors.HexColor("#64748b"), spaceAfter=2)
     body_style = ParagraphStyle('TBody', parent=styles['Normal'], fontName='Courier', fontSize=9, textColor=colors.HexColor("#1e293b"), leading=14, spaceAfter=4, leftIndent=12)
-    line_num_style = ParagraphStyle('TLineNum', parent=styles['Normal'], fontName='Helvetica', fontSize=7, textColor=colors.HexColor("#94a3b8"), leading=14, spaceAfter=4)
+    line_num_style = ParagraphStyle('TLineNum', parent=styles['Normal'], fontName='NotoSans', fontSize=7, textColor=colors.HexColor("#94a3b8"), leading=14, spaceAfter=4)
 
     elements = []
     elements.append(Paragraph(f"<b>{title}</b>", title_style))
@@ -269,9 +283,9 @@ def _audit_header_footer(canvas, doc):
     canvas.rect(0, PAGE_H - 58, PAGE_W, 3, fill=1, stroke=0)
     # Title
     canvas.setFillColor(colors.white)
-    canvas.setFont("Helvetica-Bold", 14)
+    canvas.setFont("NotoSans-Bold", 14)
     canvas.drawString(30, PAGE_H - 30, "AI PROCESSING AUDIT LOG")
-    canvas.setFont("Helvetica", 8)
+    canvas.setFont("NotoSans", 8)
     canvas.drawString(30, PAGE_H - 44, "Chunk-by-Chunk Summarization Trail")
     canvas.drawRightString(PAGE_W - 30, PAGE_H - 30, f"{settings.CLIENT_NAME} Intelligence Engine")
     canvas.drawRightString(PAGE_W - 30, PAGE_H - 44, f"{datetime.now().strftime('%d %b %Y, %I:%M %p')}")
@@ -288,12 +302,12 @@ def _audit_header_footer(canvas, doc):
     canvas.setFillColor(colors.HexColor("#f8fafc"))
     canvas.rect(0, 0, PAGE_W, 28, fill=1, stroke=0)
     canvas.setFillColor(colors.HexColor("#64748b"))
-    canvas.setFont("Helvetica", 7)
+    canvas.setFont("NotoSans", 7)
     canvas.drawString(20, 10, f"CONFIDENTIAL — AI Audit Trail | {settings.CLIENT_NAME}")
 
     # Powered by Botivate (Watermark)
     if settings.SHOW_BOTIVATE_BRANDING:
-        canvas.setFont("Helvetica-Oblique", 7)
+        canvas.setFont("NotoSans", 7)
         canvas.setFillColor(colors.HexColor("#94a3b8"))
         canvas.drawRightString(PAGE_W - 70, 10, settings.BOTIVATE_SIGNATURE)
     canvas.drawRightString(PAGE_W - 20, 10, f"Page {doc.page}")
@@ -306,10 +320,10 @@ def generate_audit_log_pdf(title: str, date: str, chunk_summaries: list) -> byte
     doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=30, rightMargin=30, topMargin=75, bottomMargin=45)
     styles = getSampleStyleSheet()
 
-    sec_title = ParagraphStyle('ASecTitle', parent=styles['Heading2'], fontName='Helvetica-Bold', fontSize=11, textColor=colors.HexColor("#1e1b4b"), spaceAfter=4, spaceBefore=16)
-    meta_style = ParagraphStyle('AMeta', parent=styles['Normal'], fontName='Helvetica', fontSize=9, textColor=colors.HexColor("#64748b"), spaceAfter=2)
-    body_style = ParagraphStyle('ABody', parent=styles['Normal'], fontName='Helvetica', fontSize=9, textColor=colors.HexColor("#334155"), leading=13, spaceAfter=4, leftIndent=8)
-    chunk_label = ParagraphStyle('AChunk', parent=styles['Normal'], fontName='Helvetica-Bold', fontSize=10, textColor=colors.HexColor("#4f46e5"), spaceAfter=2, spaceBefore=14)
+    sec_title = ParagraphStyle('ASecTitle', parent=styles['Heading2'], fontName='NotoSans-Bold', fontSize=11, textColor=colors.HexColor("#1e1b4b"), spaceAfter=4, spaceBefore=16)
+    meta_style = ParagraphStyle('AMeta', parent=styles['Normal'], fontName='NotoSans', fontSize=9, textColor=colors.HexColor("#64748b"), spaceAfter=2)
+    body_style = ParagraphStyle('ABody', parent=styles['Normal'], fontName='NotoSans', fontSize=9, textColor=colors.HexColor("#334155"), leading=13, spaceAfter=4, leftIndent=8)
+    chunk_label = ParagraphStyle('AChunk', parent=styles['Normal'], fontName='NotoSans-Bold', fontSize=10, textColor=colors.HexColor("#4f46e5"), spaceAfter=2, spaceBefore=14)
 
     elements = []
     elements.append(Paragraph(f"<b>Meeting: {title}</b>", sec_title))
@@ -358,9 +372,9 @@ def _summary_header_footer(canvas, doc):
     canvas.rect(0, PAGE_H - 60, PAGE_W, 54, fill=1, stroke=0)
     # Title
     canvas.setFillColor(colors.HexColor("#1e1b4b"))
-    canvas.setFont("Helvetica-Bold", 13)
+    canvas.setFont("NotoSans-Bold", 13)
     canvas.drawString(30, PAGE_H - 30, "EXECUTIVE SUMMARY BRIEFING")
-    canvas.setFont("Helvetica", 8)
+    canvas.setFont("NotoSans", 8)
     canvas.drawString(30, PAGE_H - 44, "AI-Synthesized Meeting Intelligence")
     # Right info
     if os.path.exists(LOGO_PATH):
@@ -370,19 +384,19 @@ def _summary_header_footer(canvas, doc):
         except:
             pass
     canvas.setFillColor(colors.HexColor("#1e1b4b"))
-    canvas.setFont("Helvetica", 8)
+    canvas.setFont("NotoSans", 8)
     canvas.drawRightString(PAGE_W - 75, PAGE_H - 30, settings.CLIENT_NAME)
     canvas.drawRightString(PAGE_W - 75, PAGE_H - 42, f"{datetime.now().strftime('%d %b %Y')}")
     # Footer
     canvas.setFillColor(colors.HexColor("#4f46e5"))
     canvas.rect(0, 0, PAGE_W, 3, fill=1, stroke=0)
     canvas.setFillColor(colors.HexColor("#64748b"))
-    canvas.setFont("Helvetica", 7)
+    canvas.setFont("NotoSans", 7)
     canvas.drawString(20, 8, f"{settings.CLIENT_NAME} | Executive Briefing")
 
     # Powered by Botivate (Watermark)
     if settings.SHOW_BOTIVATE_BRANDING:
-        canvas.setFont("Helvetica-Oblique", 7)
+        canvas.setFont("NotoSans", 7)
         canvas.setFillColor(colors.HexColor("#94a3b8"))
         canvas.drawRightString(PAGE_W - 70, 8, settings.BOTIVATE_SIGNATURE)
     canvas.drawRightString(PAGE_W - 20, 8, f"Page {doc.page}")
@@ -395,10 +409,10 @@ def generate_summary_pdf(title: str, date: str, summary_text: str) -> bytes:
     doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=40, rightMargin=40, topMargin=75, bottomMargin=30)
     styles = getSampleStyleSheet()
 
-    h1 = ParagraphStyle('SH1', parent=styles['Heading1'], fontName='Helvetica-Bold', fontSize=15, textColor=colors.HexColor("#1e1b4b"), spaceAfter=6)
-    h2 = ParagraphStyle('SH2', parent=styles['Heading2'], fontName='Helvetica-Bold', fontSize=11, textColor=colors.HexColor("#4338ca"), spaceAfter=6, spaceBefore=14)
-    meta = ParagraphStyle('SMeta', parent=styles['Normal'], fontName='Helvetica', fontSize=9, textColor=colors.HexColor("#64748b"), spaceAfter=2)
-    body = ParagraphStyle('SBody', parent=styles['Normal'], fontName='Helvetica', fontSize=10, textColor=colors.HexColor("#1e293b"), leading=15, spaceAfter=8)
+    h1 = ParagraphStyle('SH1', parent=styles['Heading1'], fontName='NotoSans-Bold', fontSize=15, textColor=colors.HexColor("#1e1b4b"), spaceAfter=6)
+    h2 = ParagraphStyle('SH2', parent=styles['Heading2'], fontName='NotoSans-Bold', fontSize=11, textColor=colors.HexColor("#4338ca"), spaceAfter=6, spaceBefore=14)
+    meta = ParagraphStyle('SMeta', parent=styles['Normal'], fontName='NotoSans', fontSize=9, textColor=colors.HexColor("#64748b"), spaceAfter=2)
+    body = ParagraphStyle('SBody', parent=styles['Normal'], fontName='NotoSans', fontSize=10, textColor=colors.HexColor("#1e293b"), leading=15, spaceAfter=8)
     bullet = ParagraphStyle('SBullet', parent=body, leftIndent=16, bulletIndent=4)
 
     elements = []
@@ -427,9 +441,10 @@ def generate_summary_pdf(title: str, date: str, summary_text: str) -> bytes:
             elements.append(Paragraph(f"<b>{stripped.lstrip('#').strip()}</b>", h2))
         elif stripped.isupper() and len(stripped) < 60:
             elements.append(Paragraph(f"<b>{stripped}</b>", h2))
-        elif stripped.startswith('•') or stripped.startswith('- ') or stripped.startswith('* '):
-            clean = stripped.lstrip('•-* ').strip()
-            elements.append(Paragraph(f"● {clean}", bullet))
+        elif stripped.startswith('- ') or stripped.startswith('* ') or stripped.startswith('•'):
+            # Standard bullet point
+            clean = re.sub(r'^[\-\*\•]\s*', '', stripped).strip()
+            elements.append(Paragraph(f"- {clean_markdown(clean)}", bullet))
         elif stripped[0].isdigit() and '.' in stripped[:4]:
             elements.append(Paragraph(stripped, bullet))
         else:

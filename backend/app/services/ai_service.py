@@ -111,7 +111,7 @@ class AIService:
         return [" ".join(words[i:i + chunk_size]) for i in range(0, len(words), chunk_size)]
 
     @classmethod
-    async def summarize_transcript(cls, transcript: str) -> dict:
+    async def summarize_transcript(cls, transcript: str, agenda: str = "No specific agenda provided.") -> dict:
         """
         Hierarchical Summarization using LangChain with step-by-step logs.
         """
@@ -140,9 +140,16 @@ class AIService:
         logger.info(f"📊 [DEBUG] Chunking transcript into {len(chunks)} segments.")
         
         map_prompt = ChatPromptTemplate.from_template(
-            "Extract highlights, decisions, and action items from this meeting segment. "
-            "The transcript may contain Hindi, English, or Hinglish (mixed Hindi-English). "
-            "Understand the context carefully and provide the summary in professional English. "
+            "Extract significant discussion points, technical details, material numbers, decisions, **Action Items (Tasks)**, and **Recommended Next Steps** from this meeting segment. "
+            "Use the provided Official Agenda as your strategic context. "
+            "\n\nOFFICIAL AGENDA:\n{agenda}\n\n"
+            "CRITICAL INSTRUCTIONS:\n"
+            "1. Focus on context and clarity while capturing essential information linked to the agenda.\n"
+            "2. Distinguish between 'Material Strategic Figures' (e.g., Budgets, Assets, Final Investment Amounts) and 'Conversational Noise' (e.g., minor calculation errors, trial numbers, or process-level arguments).\n"
+            "3. ACTION ITEMS: Explicitly extract any task discussed, whether assigned or unassigned. Label unassigned tasks as 'General Action Items'.\n"
+            "4. RECOMMENDATIONS: Capture any suggestions or proposed strategic steps mentioned.\n"
+            "5. If a calculation error (like 400g vs 500g) is discussed, only note that 'calculations were reconciled' if relevant. Do NOT list the specific intermediate numbers of the error.\n"
+            "6. Note: The transcript may contain Hindi, English, or Hinglish. Provide output in professional English.\n"
             "\n\nSegment:\n{text}"
         )
         map_chain = map_prompt | llm | StrOutputParser()
@@ -150,7 +157,7 @@ class AIService:
         chunk_summaries = []
         for i, chunk in enumerate(chunks):
             logger.info(f"🕒 [DEBUG] Summarizing Chunk {i+1}/{len(chunks)} (Input: {len(chunk.split())} words)...")
-            summary = await map_chain.ainvoke({"text": chunk})
+            summary = await map_chain.ainvoke({"text": chunk, "agenda": agenda})
             chunk_summaries.append(summary)
             logger.info(f"✨ [CHUNK SUMMARY {i+1}] {summary[:200]}...")
 
@@ -158,40 +165,50 @@ class AIService:
         logger.info("🔥 [DEBUG] Merging all segments into professional MOM...")
         
         reduce_prompt = ChatPromptTemplate.from_template(
-            "Synthesize these meeting segment summaries into a professional, formal Minutes of Meeting (MOM) report in English. "
-            "Ensure the report includes an Executive Summary, Decisions, and Action Items. "
-            "Note: The original discussion might have been in Hindi/Hinglish, so ensure the English synthesis is clear and professional.\n\nSummaries:\n{summaries}"
+            "Synthesize these segment summaries into a professional, formal MOM report in English. "
+            "Ensure the report includes an Executive Summary, Decisions, **Strict Action items**, and **Recommended Tasks**. "
+            "Refer to the Official Agenda for structure: \n{agenda}\n\n"
+            "Note: Original discussion might be Hindi/Hinglish. English synthesis must be clear and professional.\n\nSummaries:\n{summaries}"
         )
         reduce_chain = reduce_prompt | llm | StrOutputParser()
         
         combined_summaries_text = "\n\n".join(chunk_summaries)
-        final_summary = await reduce_chain.ainvoke({"summaries": combined_summaries_text})
+        final_summary = await reduce_chain.ainvoke({"summaries": combined_summaries_text, "agenda": agenda})
 
         # 3. Beautify Stage (Formatted Narrative Summary)
         logger.info("✨ [DEBUG] Generating well-formatted Final Summary report...")
         beautify_prompt = ChatPromptTemplate.from_template(
-            "Create a well-formatted, easy-to-read final summary report in English based on these meeting summaries. "
-            "The discussion may have been in Hindi/Hinglish; focus on a flowing narrative and key highlights in professional English. "
-            "\n\nCRITICAL INSTRUCTIONS: "
-            "1. DO NOT use generic placeholders like [Your Name], [Your Position], [Company Name], or [Insert Date]. "
-            "2. DO NOT include a signature or contact section at the end. "
-            "3. DO NOT include a 'Final Summary Report' title line. "
-            "4. Start directly with the overview or highlights. "
-            "5. Use Markdown styles (## for headings, ** for bold, bullet points for lists) moderately for readability."
+            "Create a COMPREHENSIVE STRATEGIC INTELLIGENCE BRIEFING report in English. "
+            "Use the provided Official Agenda to organize the report: \n{agenda}\n\n"
+            "CRITICAL FORMATTING INSTRUCTIONS:\n"
+            "1. HIERARCHY: Every major topic/section must start with a **BOLD AND UPPERCASE HEADER** followed by a colon (e.g., **AI INFRASTRUCTURE INVESTMENT PROPOSAL:**). \n"
+            "2. FORMATTED BULLETS: All descriptions, details, and metrics under each header must be in normal (non-bold) bullet points (-).\n"
+            "3. MANDATORY SECTION: You MUST include a final section titled **RECOMMENDED TASKS & NEXT STEPS:** with specific actionable items.\n"
+            "4. STRATEGIC MAGNITUDE: Preserve high-value metrics (e.g., ₹2 Crores) but discard minor conversational noise. Focus on the CONCLUSION.\n"
+            "5. NO EMOJIS: Use simple dashes (-) for bullets.\n"
+            "6. NO PARAGRAPHS: Keep the briefing crisp and point-wise where possible.\n"
             "\n\nSummaries:\n{summaries}"
         )
         beautify_chain = beautify_prompt | llm | StrOutputParser()
-        formatted_summary = await beautify_chain.ainvoke({"summaries": combined_summaries_text})
+        formatted_summary = await beautify_chain.ainvoke({"summaries": combined_summaries_text, "agenda": agenda})
 
-        # 4. Dashboard Stage (Short Point-wise Summary)
-        logger.info("📊 [DEBUG] Extracting concise dashboard summary points...")
+        # 4. Dashboard Stage (Balanced Narrative Summary for UI Autofill)
+        logger.info("📊 [DEBUG] Extracting balanced dashboard summary points...")
         dashboard_prompt = ChatPromptTemplate.from_template(
-            "Extract 5-8 most critical, high-impact bullet points from these meeting summaries for a dashboard view. "
-            "Keep them short, action-oriented, and easy to read at a glance.\n"
-            "CRITICAL INSTRUCTION: Return the response in PLAIN TEXT ONLY. Do NOT use any Markdown formatting, bolding (**), italics, or hashtags. Just use a simple dash (-) for bullet points.\n\nSummaries:\n{summaries}"
+            "Generate a HIGH-IMPACT, POINT-WISE PROFESSIONAL SUMMARY for a web dashboard. "
+            "Reference Official Agenda: {agenda}\n\n"
+            "CRITICAL FORMATTING INSTRUCTIONS:\n"
+            "1. BOLD HEADERS: Every main debate/topic/section header must be **BOLD AND UPPERCASE** (e.g., **CONFORMANCE & AUDIT:**, **FINANCIAL ALLOCATION:**).\n"
+            "2. MANDATORY SECTIONS: You MUST explicitly include **DECISIONS MADE:** and **RECOMMENDED TASKS:** sections.\n"
+            "3. NORMAL BULLETS: All descriptive points under headers must be plain text bullet points (-). DO NOT bold the bullet point text itself.\n"
+            "4. POINT-WISE ONLY: No paragraphs. Use a structured list for every topic.\n"
+            "5. STRATEGIC MAGNITUDE: Record final agreed-upon figures and high-value metrics (e.g. ₹2 Crores). Discard process-level noise.\n"
+            "6. NO HALLUCINATION: Only list items that were EXPLICITLY discussed.\n"
+            "7. NO EMOJIS: Use only plain text and simple dashes (-).\n"
+            "\n\nSummaries:\n{summaries}"
         )
         dashboard_chain = dashboard_prompt | llm | StrOutputParser()
-        brief_summary = await dashboard_chain.ainvoke({"summaries": combined_summaries_text})
+        brief_summary = await dashboard_chain.ainvoke({"summaries": combined_summaries_text, "agenda": agenda})
 
         logger.info("🏁 [DEBUG] AI Pipeline Finished Successfully.")
         return {
