@@ -141,15 +141,15 @@ class AIService:
         
         map_prompt = ChatPromptTemplate.from_template(
             "Extract significant discussion points, technical details, material numbers, decisions, **Action Items (Tasks)**, and **Recommended Next Steps** from this meeting segment. "
-            "Use the provided Official Agenda as your strategic context. "
-            "\n\nOFFICIAL AGENDA:\n{agenda}\n\n"
+            "Use the provided Official Agenda as your strategic context, **but capture any relevant discussions and strategic points even if they are NOT listed in the agenda.** "
+            "\n\nOFFICIAL AGENDA REFERENCE:\n{agenda}\n\n"
             "CRITICAL INSTRUCTIONS:\n"
-            "1. Focus on context and clarity while capturing essential information linked to the agenda.\n"
-            "2. Distinguish between 'Material Strategic Figures' (e.g., Budgets, Assets, Final Investment Amounts) and 'Conversational Noise' (e.g., minor calculation errors, trial numbers, or process-level arguments).\n"
-            "3. ACTION ITEMS: Explicitly extract any task discussed, whether assigned or unassigned. Label unassigned tasks as 'General Action Items'.\n"
+            "1. COMPREHENSIVE EXTRACTION: Capture essential information linked to the agenda but do NOT ignore other significant topics discussed. "
+            "2. STRATEGIC RELEVANCE: Prioritize 'Material Strategic Figures' and final conclusions for all topics (both inside and outside the agenda).\n"
+            "3. ACTION ITEMS: Explicitly extract any task discussed. Label unassigned tasks as 'General Action Items'.\n"
             "4. RECOMMENDATIONS: Capture any suggestions or proposed strategic steps mentioned.\n"
-            "5. If a calculation error (like 400g vs 500g) is discussed, only note that 'calculations were reconciled' if relevant. Do NOT list the specific intermediate numbers of the error.\n"
-            "6. Note: The transcript may contain Hindi, English, or Hinglish. Provide output in professional English.\n"
+            "5. NOISE FILTERING: Discard minor conversational noise (like calculation errors) but ensure the core outcome of ALL discussed topics is recorded.\n"
+            "6. Note: Output output in professional English.\n"
             "\n\nSegment:\n{text}"
         )
         map_chain = map_prompt | llm | StrOutputParser()
@@ -166,9 +166,10 @@ class AIService:
         
         reduce_prompt = ChatPromptTemplate.from_template(
             "Synthesize these segment summaries into a professional, formal MOM report in English. "
-            "Ensure the report includes an Executive Summary, Decisions, **Strict Action items**, and **Recommended Tasks**. "
             "Refer to the Official Agenda for structure: \n{agenda}\n\n"
-            "Note: Original discussion might be Hindi/Hinglish. English synthesis must be clear and professional.\n\nSummaries:\n{summaries}"
+            "CRITICAL INSTRUCTION: Include an Executive Summary, Decisions, **Action items**, and **Recommended Tasks**. "
+            "IMPORTANT: If topics outside the agenda were discussed, include them in a relevant section or under an **'ADDITIONAL TOPICS'** header. Do not omit significant off-agenda discussions.\n\n"
+            "Summaries:\n{summaries}"
         )
         reduce_chain = reduce_prompt | llm | StrOutputParser()
         
@@ -179,14 +180,12 @@ class AIService:
         logger.info("✨ [DEBUG] Generating well-formatted Final Summary report...")
         beautify_prompt = ChatPromptTemplate.from_template(
             "Create a COMPREHENSIVE STRATEGIC INTELLIGENCE BRIEFING report in English. "
-            "Use the provided Official Agenda to organize the report: \n{agenda}\n\n"
             "CRITICAL FORMATTING INSTRUCTIONS:\n"
-            "1. HIERARCHY: Every major topic/section must start with a **BOLD AND UPPERCASE HEADER** followed by a colon (e.g., **AI INFRASTRUCTURE INVESTMENT PROPOSAL:**). \n"
-            "2. FORMATTED BULLETS: All descriptions, details, and metrics under each header must be in normal (non-bold) bullet points (-).\n"
-            "3. MANDATORY SECTION: You MUST include a final section titled **RECOMMENDED TASKS & NEXT STEPS:** with specific actionable items.\n"
-            "4. STRATEGIC MAGNITUDE: Preserve high-value metrics (e.g., ₹2 Crores) but discard minor conversational noise. Focus on the CONCLUSION.\n"
-            "5. NO EMOJIS: Use simple dashes (-) for bullets.\n"
-            "6. NO PARAGRAPHS: Keep the briefing crisp and point-wise where possible.\n"
+            "1. HIERARCHY: Every major topic/section (including both Agenda items and extra topics discussed) must start with a **BOLD AND UPPERCASE HEADER** followed by a colon (e.g., **AI INFRASTRUCTURE INVESTMENT PROPOSAL:**). \n"
+            "2. INCLUSIVITY: Capture all important discussion points, even those NOT found in the original agenda: \n{agenda}\n\n"
+            "3. FORMATTED BULLETS: All descriptions under headers must be in normal bullet points (-).\n"
+            "4. MANDATORY SECTION: You MUST include a final section titled **RECOMMENDED TASKS & NEXT STEPS:**.\n"
+            "5. STRATEGIC MAGNITUDE: Focus on CONCLUSIONS and high-value metrics. Discard noise.\n"
             "\n\nSummaries:\n{summaries}"
         )
         beautify_chain = beautify_prompt | llm | StrOutputParser()
@@ -196,15 +195,12 @@ class AIService:
         logger.info("📊 [DEBUG] Extracting balanced dashboard summary points...")
         dashboard_prompt = ChatPromptTemplate.from_template(
             "Generate a HIGH-IMPACT, POINT-WISE PROFESSIONAL SUMMARY for a web dashboard. "
-            "Reference Official Agenda: {agenda}\n\n"
             "CRITICAL FORMATTING INSTRUCTIONS:\n"
-            "1. BOLD HEADERS: Every main debate/topic/section header must be **BOLD AND UPPERCASE** (e.g., **CONFORMANCE & AUDIT:**, **FINANCIAL ALLOCATION:**).\n"
-            "2. MANDATORY SECTIONS: You MUST explicitly include **DECISIONS MADE:** and **RECOMMENDED TASKS:** sections.\n"
-            "3. NORMAL BULLETS: All descriptive points under headers must be plain text bullet points (-). DO NOT bold the bullet point text itself.\n"
-            "4. POINT-WISE ONLY: No paragraphs. Use a structured list for every topic.\n"
-            "5. STRATEGIC MAGNITUDE: Record final agreed-upon figures and high-value metrics (e.g. ₹2 Crores). Discard process-level noise.\n"
-            "6. NO HALLUCINATION: Only list items that were EXPLICITLY discussed.\n"
-            "7. NO EMOJIS: Use only plain text and simple dashes (-).\n"
+            "1. BOLD HEADERS: Use **BOLD AND UPPERCASE** for every main topic/section header.\n"
+            "2. COMPREHENSIVE: Reference the Official Agenda ({agenda}) but **ensure to include ANY other strategic topics, decisions, or tasks discussed that were NOT in the agenda.**\n"
+            "3. MANDATORY SECTIONS: You MUST explicitly include **DECISIONS MADE:** and **RECOMMENDED TASKS:**. Include off-agenda decisions here too.\n"
+            "4. POINT-WISE ONLY: Use plain text bullet points (-). No paragraphs.\n"
+            "5. STRATEGIC MAGNITUDE: Only record final outcomes and big figures. Discard dialogue noise.\n"
             "\n\nSummaries:\n{summaries}"
         )
         dashboard_chain = dashboard_prompt | llm | StrOutputParser()
