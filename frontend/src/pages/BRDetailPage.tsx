@@ -104,19 +104,48 @@ export default function BRDetailPage() {
         }
     };
 
-    const handleRescheduleMeeting = async () => {
-        const newDate = window.prompt("Enter new date (YYYY-MM-DD):", meeting?.date || "");
-        if (!newDate) return;
-        const newTime = window.prompt("Enter new time (HH:MM):", meeting?.time || "");
-        if (!newTime) return;
+    const handleRescheduleMeeting = () => {
+        if (!meeting) return;
 
-        try {
-            await api.post(`/br/${id}/reschedule`, { date: newDate, time: newTime });
-            toast.success('Resolution rescheduled');
-            queryClient.invalidateQueries({ queryKey: ['br', id] });
-        } catch {
-            toast.error('Failed to reschedule resolution');
-        }
+        navigate('/schedule-meeting', {
+            state: {
+                prefill: {
+                    title: meeting.title || '',
+                    organization: meeting.organization || '',
+                    meeting_type: meeting.meeting_type || 'Board Resolution',
+                    meeting_mode: meeting.meeting_mode || 'Online',
+                    date: meeting.date || '',
+                    time: meeting.time || '',
+                    venue: meeting.venue || '',
+                    hosted_by: meeting.hosted_by || '',
+                    attendees: (meeting.attendees || []).map((a) => ({
+                        user_name: a.user_name || '',
+                        email: a.email || '',
+                        designation: a.designation || '',
+                        unique_id: a.unique_id || '',
+                        whatsapp_number: a.whatsapp_number || '',
+                        remarks: a.remarks || '',
+                        attendance_status: a.attendance_status || 'Present',
+                    })),
+                    agenda_items: (meeting.agenda_items || []).map((a) => ({
+                        topic: a.topic || '',
+                        description: a.description || '',
+                    })),
+                    discussion_summary: meeting.discussion?.summary_text || '',
+                    tasks: (meeting.tasks || []).map((t) => ({
+                        title: t.title || '',
+                        description: t.description || '',
+                        responsible_person: t.responsible_person || '',
+                        responsible_email: t.responsible_email || '',
+                        deadline: t.deadline || '',
+                        status: t.status || 'Pending',
+                    })),
+                },
+                rescheduleContext: {
+                    isRescheduled: true,
+                },
+            },
+        });
     };
 
     // ── Task Operations ────────────────────────────────
@@ -187,7 +216,8 @@ export default function BRDetailPage() {
     ];
 
     const normalizedStatus = String(meeting.status || '').trim().toLowerCase();
-    const canAction = normalizedStatus === 'scheduled' || normalizedStatus === 'rescheduled' || normalizedStatus === 'processing';
+    const canReschedule = normalizedStatus === 'scheduled' || normalizedStatus === 'rescheduled' || normalizedStatus === 'cancelled' || normalizedStatus === 'processing';
+    const canCancel = normalizedStatus === 'scheduled' || normalizedStatus === 'rescheduled' || normalizedStatus === 'processing';
     const showTasksSection = normalizedStatus === 'completed';
     const inputClass = 'w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all';
 
@@ -205,20 +235,24 @@ export default function BRDetailPage() {
                     >
                         <PencilSquareIcon className="w-4 h-4" /> Pass Resolution
                     </button>
-                    {canAction && (
+                    {(canReschedule || canCancel) && (
                         <>
-                            <button
-                                onClick={handleRescheduleMeeting}
-                                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-semibold rounded-xl bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-400 hover:bg-brand-100 dark:hover:bg-brand-500/20 border border-brand-100 dark:border-brand-500/20 transition-all active:scale-[0.98]"
-                            >
-                                <CalendarDaysIcon className="w-4 h-4" /> Reschedule
-                            </button>
-                            <button
-                                onClick={handleCancelMeeting}
-                                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-semibold rounded-xl bg-orange-50 dark:bg-orange-500/10 text-orange-700 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-500/20 border border-orange-100 dark:border-orange-500/20 transition-all active:scale-[0.98]"
-                            >
-                                <ClockIcon className="w-4 h-4" /> Cancel
-                            </button>
+                            {canReschedule && (
+                                <button
+                                    onClick={handleRescheduleMeeting}
+                                    className="inline-flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-semibold rounded-xl bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-400 hover:bg-brand-100 dark:hover:bg-brand-500/20 border border-brand-100 dark:border-brand-500/20 transition-all active:scale-[0.98]"
+                                >
+                                    <CalendarDaysIcon className="w-4 h-4" /> Reschedule
+                                </button>
+                            )}
+                            {canCancel && (
+                                <button
+                                    onClick={handleCancelMeeting}
+                                    className="inline-flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-semibold rounded-xl bg-orange-50 dark:bg-orange-500/10 text-orange-700 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-500/20 border border-orange-100 dark:border-orange-500/20 transition-all active:scale-[0.98]"
+                                >
+                                    <ClockIcon className="w-4 h-4" /> Cancel
+                                </button>
+                            )}
                         </>
                     )}
 
@@ -254,7 +288,7 @@ export default function BRDetailPage() {
             </div>
 
             {/* ── Recording Section ── */}
-            {meeting.status === 'Scheduled' && (
+            {(normalizedStatus === 'scheduled' || normalizedStatus === 'rescheduled') && (
                 <RecordingOverlay 
                     meetingId={meeting.id} 
                     meetingType="BR" 
@@ -264,7 +298,7 @@ export default function BRDetailPage() {
             )}
 
             {/* ── Processing Progress Banner ── */}
-            {((meeting.status === 'Processing' && !meeting.ai_summary_link) || meeting.status === 'Scheduled') && (
+            {((normalizedStatus === 'processing' && !meeting.ai_summary_link) || normalizedStatus === 'scheduled' || normalizedStatus === 'rescheduled') && (
                 <ProcessingBanner
                     meetingId={meeting.id}
                     meetingType="BR"

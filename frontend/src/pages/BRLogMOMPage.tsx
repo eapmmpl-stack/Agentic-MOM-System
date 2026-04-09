@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -24,33 +24,69 @@ export default function BRLogMOMPage() {
     });
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
     const [loading, setLoading] = useState(false);
+    const [editingResolution, setEditingResolution] = useState(false);
+    const resolutionTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+    const normalizeText = (value: unknown) => {
+        if (typeof value === 'string') return value;
+        if (value === null || value === undefined) return '';
+        return String(value);
+    };
 
     useEffect(() => {
         if (meeting) {
+            const attendees = Array.isArray(meeting.attendees) ? meeting.attendees : [];
+            const tasks = Array.isArray(meeting.tasks) ? meeting.tasks : [];
+            const summaryText = normalizeText(meeting.discussion?.summary_text);
+
             setForm({
-                attendees: meeting.attendees.map(a => ({
+                attendees: attendees.map(a => ({
                     id: a.id,
                     attendance_status: a.attendance_status || 'Present',
                     unique_id: (a as any).unique_id || '',
                     remarks: a.remarks || '',
                 })),
-                discussion_summary: meeting.discussion?.summary_text || '',
-                tasks: meeting.tasks.map(t => ({
+                discussion_summary: summaryText,
+                tasks: tasks.map(t => ({
                     title: t.title,
                     description: t.description || '',
                     responsible_person: t.responsible_person || '',
                     responsible_email: t.responsible_email || '',
                     deadline: t.deadline || '',
                     status: t.status,
-                    _manualMode: (t.responsible_person && !meeting.attendees.some(a => a.user_name === t.responsible_person)) as boolean,
+                    _manualMode: (t.responsible_person && !attendees.some(a => a.user_name === t.responsible_person)) as boolean,
                 }) as any),
                 next_meeting: {
                     next_date: meeting.next_meeting?.next_date || '',
                     next_time: meeting.next_meeting?.next_time || '',
                 },
             });
+            setEditingResolution(!summaryText.trim());
         }
     }, [meeting]);
+
+    const updateField = (field: string, value: any) => setForm((p) => ({ ...p, [field]: value }));
+
+    const autoResizeResolution = (target?: HTMLTextAreaElement | null) => {
+        const el = target || resolutionTextareaRef.current;
+        if (!el) return;
+        el.style.height = 'auto';
+        el.style.height = `${Math.max(el.scrollHeight, 220)}px`;
+    };
+
+    const formatResolutionHtml = (text: string) => {
+        return (text || '')
+            .replace(/\*\*\s*(.*?)\s*\*\*/gs, '<b class="font-extrabold text-slate-900 dark:text-white">$1</b>')
+            .replace(/^###\s*(.*)$/gm, '<h3 class="text-md font-extrabold text-brand-600 dark:text-brand-400 mt-4 mb-2 uppercase tracking-wide">$1</h3>')
+            .replace(/^##\s*(.*)$/gm, '<h2 class="text-lg font-extrabold text-brand-700 dark:text-brand-300 mt-5 mb-2 uppercase tracking-tight">$1</h2>')
+            .replace(/\n/g, '<br/>');
+    };
+
+    useEffect(() => {
+        if (editingResolution) {
+            autoResizeResolution();
+        }
+    }, [editingResolution, form.discussion_summary]);
 
     if (meetingLoading || !meeting) {
         return (
@@ -61,7 +97,7 @@ export default function BRLogMOMPage() {
         );
     }
 
-    const updateField = (field: string, value: any) => setForm((p) => ({ ...p, [field]: value }));
+    const safeAttendees = Array.isArray(meeting.attendees) ? meeting.attendees : [];
 
     const updateAttendee = (i: number, field: 'attendance_status' | 'remarks' | 'unique_id', value: string) =>
         setForm((p) => ({
@@ -98,6 +134,11 @@ export default function BRLogMOMPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!form.discussion_summary?.trim()) {
+            toast.error('Resolution wording is required');
+            setEditingResolution(true);
+            return;
+        }
         setLoading(true);
         try {
             const payload = {
@@ -158,17 +199,38 @@ export default function BRLogMOMPage() {
                 {/* ── Resolution Content ── */}
                 <section className="bg-white dark:bg-[#161b27] rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-6 overflow-hidden relative">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-brand-500/5 rounded-full -mr-16 -mt-16 blur-3xl" />
-                    <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-                        <DocumentIcon className="w-5 h-5 text-brand-500" /> Resolution Wording
-                    </h3>
-                    <textarea
-                        rows={8}
-                        value={form.discussion_summary}
-                        onChange={(e) => updateField('discussion_summary', e.target.value)}
-                        className={`${inputClass} font-medium leading-relaxed resize-none`}
-                        placeholder="Enter the formal 'RESOLVED THAT...' wording here..."
-                        required
-                    />
+                    <div className="flex items-center justify-between mb-4 gap-3">
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                            <DocumentIcon className="w-5 h-5 text-brand-500" /> Resolution Wording
+                        </h3>
+                        <button
+                            type="button"
+                            onClick={() => setEditingResolution((prev) => !prev)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400 text-xs font-bold hover:bg-brand-100 transition-colors"
+                        >
+                            {editingResolution ? 'Preview Structured' : 'Edit Raw Text'}
+                        </button>
+                    </div>
+
+                    {editingResolution ? (
+                        <textarea
+                            ref={resolutionTextareaRef}
+                            rows={1}
+                            value={form.discussion_summary}
+                            onChange={(e) => {
+                                updateField('discussion_summary', e.target.value);
+                                autoResizeResolution(e.target);
+                            }}
+                            className={`${inputClass} font-medium leading-relaxed resize-none overflow-hidden`}
+                            style={{ minHeight: '220px' }}
+                            placeholder="Enter the formal 'RESOLVED THAT...' wording here..."
+                        />
+                    ) : (
+                        <div
+                            className="text-[14px] text-slate-700 dark:text-slate-300 leading-relaxed font-medium bg-slate-50 dark:bg-white/5 p-4 rounded-xl border border-slate-100 dark:border-slate-800 space-y-2 min-h-[220px]"
+                            dangerouslySetInnerHTML={{ __html: formatResolutionHtml(form.discussion_summary || '') }}
+                        />
+                    )}
                 </section>
 
                 {/* ── Supporting Documents (FILES) ── */}
@@ -209,7 +271,7 @@ export default function BRLogMOMPage() {
                 <section className="bg-white dark:bg-[#161b27] rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
                     <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Board Attendance</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {meeting.attendees.map((a, i) => (
+                        {safeAttendees.map((a, i) => (
                             <div key={a.id} className="flex flex-col p-4 rounded-xl bg-slate-50/50 dark:bg-white/5 border border-slate-100 dark:border-slate-800 gap-3">
                                 <div className="flex items-center gap-2">
                                     <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-600 dark:text-slate-400">
@@ -288,7 +350,7 @@ export default function BRLogMOMPage() {
                                             className={inputClass}
                                         >
                                             <option value="">-- Select Assignee --</option>
-                                            {meeting.attendees.map(a => (
+                                            {safeAttendees.map(a => (
                                                 <option key={a.id} value={a.user_name}>{a.user_name} ({a.designation || 'Reviewer'})</option>
                                             ))}
                                             <option value="__OTHER__">Other / External</option>

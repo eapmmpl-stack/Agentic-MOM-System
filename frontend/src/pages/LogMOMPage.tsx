@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -10,7 +10,7 @@ export default function LogMOMPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  const { data: meeting, isLoading: meetingLoading } = useQuery<Meeting>({
+  const { data: meeting, isLoading: meetingLoading, isError: meetingError, error } = useQuery<Meeting>({
     queryKey: ['meetings', id],
     queryFn: async () => (await api.get(`/meetings/${id}`)).data,
     enabled: !!id,
@@ -23,38 +23,91 @@ export default function LogMOMPage() {
     next_meeting: { next_date: '', next_time: '' },
   });
   const [loading, setLoading] = useState(false);
+  const [editingDiscussion, setEditingDiscussion] = useState(false);
+  const discussionTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const normalizeText = (value: unknown) => {
+    if (typeof value === 'string') return value;
+    if (value === null || value === undefined) return '';
+    return String(value);
+  };
+
+  const normalizeObjectArray = (value: unknown): any[] => {
+    if (!Array.isArray(value)) return [];
+    return value.filter((item) => item && typeof item === 'object');
+  };
 
   useEffect(() => {
     if (meeting) {
+      const attendees = normalizeObjectArray(meeting.attendees);
+      const tasks = normalizeObjectArray(meeting.tasks);
+      const summaryText = normalizeText(meeting.discussion?.summary_text);
+
       setForm({
-        attendees: meeting.attendees.map(a => ({
+        attendees: attendees.map(a => ({
           id: a.id,
           attendance_status: a.attendance_status || 'Present',
           remarks: a.remarks || '',
         })),
-        discussion_summary: meeting.discussion?.summary_text || '',
-        tasks: meeting.tasks.map(t => ({
+        discussion_summary: summaryText,
+        tasks: tasks.map(t => ({
           title: t.title,
           description: t.description || '',
           responsible_person: t.responsible_person || '',
           responsible_email: t.responsible_email || '',
           deadline: t.deadline || '',
           status: t.status,
-          _manualMode: (t.responsible_person && !meeting.attendees.some(a => a.user_name === t.responsible_person)) as boolean,
+          _manualMode: (t.responsible_person && !attendees.some(a => a.user_name === t.responsible_person)) as boolean,
         }) as any),
         next_meeting: {
           next_date: meeting.next_meeting?.next_date || '',
           next_time: meeting.next_meeting?.next_time || '',
         },
       });
+      setEditingDiscussion(!summaryText.trim());
     }
   }, [meeting]);
 
-  if (meetingLoading || !meeting) {
+  const updateField = (field: string, value: any) => setForm((p) => ({ ...p, [field]: value }));
+
+  const autoResizeDiscussion = (target?: HTMLTextAreaElement | null) => {
+    const el = target || discussionTextareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.max(el.scrollHeight, 180)}px`;
+  };
+
+  const formatDiscussionHtml = (text: string) => {
+    return (text || '')
+      .replace(/\*\*\s*(.*?)\s*\*\*/gs, '<b class="font-extrabold text-slate-900 dark:text-white">$1</b>')
+      .replace(/^###\s*(.*)$/gm, '<h3 class="text-md font-extrabold text-brand-600 dark:text-brand-400 mt-4 mb-2 uppercase tracking-wide">$1</h3>')
+      .replace(/^##\s*(.*)$/gm, '<h2 class="text-lg font-extrabold text-brand-700 dark:text-brand-300 mt-5 mb-2 uppercase tracking-tight">$1</h2>')
+      .replace(/\n/g, '<br/>');
+  };
+
+  useEffect(() => {
+    if (editingDiscussion) {
+      autoResizeDiscussion();
+    }
+  }, [editingDiscussion, form.discussion_summary]);
+
+  if (meetingLoading) {
     return <div className="p-8 text-center text-gray-500">Loading meeting details...</div>;
   }
 
-  const updateField = (field: string, value: any) => setForm((p) => ({ ...p, [field]: value }));
+  if (meetingError) {
+    return (
+      <div className="p-8 text-center text-red-500">
+        Failed to load meeting details. {(error as any)?.message ? `(${(error as any).message})` : ''}
+      </div>
+    );
+  }
+
+  if (!meeting) {
+    return <div className="p-8 text-center text-gray-500">Meeting details not found.</div>;
+  }
+
+  const safeAttendees = normalizeObjectArray(meeting.attendees);
 
   const updateAttendee = (i: number, field: 'attendance_status' | 'remarks', value: string) =>
     setForm((p) => ({
@@ -139,7 +192,7 @@ export default function LogMOMPage() {
         <section className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Mark Attendance</h3>
           <p className="text-sm text-gray-500 mb-4 italic">Select who attended the meeting.</p>
-          {meeting.attendees.map((a, i) => (
+          {safeAttendees.map((a, i) => (
             <div key={a.id} className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3 items-center">
               <div>
                 <span className="font-medium text-gray-900 dark:text-white">{a.user_name}</span>
@@ -164,14 +217,40 @@ export default function LogMOMPage() {
 
         {/* Discussion */}
         <section className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Discussion Summary</h3>
-          <textarea
-            rows={4}
-            value={form.discussion_summary}
-            onChange={(e) => updateField('discussion_summary', e.target.value)}
-            className={inputClass}
-            placeholder="Summarize the key discussion points from the meeting..."
-          />
+          <div className="flex items-center justify-between mb-4 gap-3">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Discussion Summary</h3>
+            <button
+              type="button"
+              onClick={() => setEditingDiscussion((prev) => !prev)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400 text-xs font-bold hover:bg-brand-100 transition-colors"
+            >
+              {editingDiscussion ? 'Preview Structured' : 'Edit Raw Text'}
+            </button>
+          </div>
+
+          {editingDiscussion ? (
+            <textarea
+              ref={discussionTextareaRef}
+              rows={1}
+              value={form.discussion_summary}
+              onChange={(e) => {
+                updateField('discussion_summary', e.target.value);
+                autoResizeDiscussion(e.target);
+              }}
+              className={`${inputClass} resize-none overflow-hidden`}
+              style={{ minHeight: '180px' }}
+              placeholder="Summarize the key discussion points from the meeting..."
+            />
+          ) : (
+            <div
+              className="text-[13px] text-slate-700 dark:text-slate-300 leading-relaxed space-y-2 bg-slate-50 dark:bg-white/5 p-4 rounded-xl border border-slate-100 dark:border-slate-800 min-h-[180px]"
+              dangerouslySetInnerHTML={{
+                __html: normalizeText(form.discussion_summary).trim()
+                  ? formatDiscussionHtml(normalizeText(form.discussion_summary))
+                  : '<p class="text-sm text-slate-400 italic">No discussion summary recorded yet. Click Edit Raw Text to add one.</p>',
+              }}
+            />
+          )}
         </section>
 
         {/* Tasks */}
@@ -200,7 +279,7 @@ export default function LogMOMPage() {
                         return { ...p, tasks: newTasks };
                       });
                     } else if (val) {
-                      const a = meeting.attendees.find(x => x.user_name === val);
+                      const a = safeAttendees.find(x => x.user_name === val);
                       setForm(p => {
                         const newTasks = [...p.tasks];
                         (newTasks[i] as any)._manualMode = false;
@@ -221,7 +300,7 @@ export default function LogMOMPage() {
                   className={inputClass}
                 >
                   <option value="">-- Select Assignee --</option>
-                  {meeting.attendees.map(a => (
+                  {safeAttendees.map(a => (
                     <option key={a.id} value={a.user_name}>{a.user_name} {a.email ? `(${a.email})` : ''}</option>
                   ))}
                   <option value="__OTHER__">Other / Manual</option>
@@ -258,7 +337,15 @@ export default function LogMOMPage() {
               <input
                 type="date"
                 value={form.next_meeting?.next_date || ''}
-                onChange={(e) => setForm((p) => ({ ...p, next_meeting: { ...p.next_meeting!, next_date: e.target.value } }))}
+                onChange={(e) =>
+                  setForm((p) => ({
+                    ...p,
+                    next_meeting: {
+                      ...(p.next_meeting || { next_date: '', next_time: '' }),
+                      next_date: e.target.value,
+                    },
+                  }))
+                }
                 className={inputClass}
               />
             </div>
@@ -267,7 +354,15 @@ export default function LogMOMPage() {
               <input
                 type="time"
                 value={form.next_meeting?.next_time || ''}
-                onChange={(e) => setForm((p) => ({ ...p, next_meeting: { ...p.next_meeting!, next_time: e.target.value } }))}
+                onChange={(e) =>
+                  setForm((p) => ({
+                    ...p,
+                    next_meeting: {
+                      ...(p.next_meeting || { next_date: '', next_time: '' }),
+                      next_time: e.target.value,
+                    },
+                  }))
+                }
                 className={inputClass}
               />
             </div>

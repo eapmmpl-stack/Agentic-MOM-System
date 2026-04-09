@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -16,7 +16,6 @@ import {
   MicrophoneIcon,
   DocumentIcon,
   PlusIcon,
-  XMarkIcon,
   PaperAirplaneIcon,
 } from '@heroicons/react/24/outline';
 import RecordingOverlay from '../components/RecordingOverlay';
@@ -53,8 +52,6 @@ export default function MeetingDetailPage() {
   const navigate = useNavigate();
 
   // ── Editable State ─────────────────────────────────
-  const [editingDiscussion, setEditingDiscussion] = useState(false);
-  const [discussionText, setDiscussionText] = useState('');
   const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
   const [taskEditData, setTaskEditData] = useState<{ title: string; description: string; responsible_person: string; deadline: string; status: string }>({ title: '', description: '', responsible_person: '', deadline: '', status: 'Pending' });
   const [showAddTask, setShowAddTask] = useState(false);
@@ -73,12 +70,6 @@ export default function MeetingDetailPage() {
     queryKey: ['meeting', id],
     queryFn: async () => (await api.get(`/meetings/${id}`)).data,
   });
-
-  useEffect(() => {
-    if (meeting?.discussion) {
-      setDiscussionText(meeting.discussion.summary_text || '');
-    }
-  }, [meeting]);
 
   const fetchMeeting = () => {
     queryClient.invalidateQueries({ queryKey: ['meeting', id] });
@@ -110,20 +101,48 @@ export default function MeetingDetailPage() {
     }
   };
 
-  const handleRescheduleMeeting = async () => {
-    const newDate = window.prompt("Enter new date (YYYY-MM-DD):", meeting?.date || "");
-    if (!newDate) return;
-    const newTime = window.prompt("Enter new time (HH:MM):", meeting?.time || "");
-    if (!newTime) return;
+  const handleRescheduleMeeting = () => {
+    if (!meeting) return;
 
-    try {
-      await api.post(`/meetings/${id}/reschedule`, { date: newDate, time: newTime });
-      toast.success('Meeting rescheduled');
-      queryClient.invalidateQueries({ queryKey: ['meeting', id] });
-      queryClient.invalidateQueries({ queryKey: ['meetings'] });
-    } catch {
-      toast.error('Failed to reschedule meeting');
-    }
+    navigate('/schedule-meeting', {
+      state: {
+        prefill: {
+          title: meeting.title || '',
+          organization: meeting.organization || '',
+          meeting_type: meeting.meeting_type || '',
+          meeting_mode: meeting.meeting_mode || 'Online',
+          date: meeting.date || '',
+          time: meeting.time || '',
+          venue: meeting.venue || '',
+          hosted_by: meeting.hosted_by || '',
+          attendees: (meeting.attendees || []).map((a) => ({
+            user_name: a.user_name || '',
+            email: a.email || '',
+            designation: a.designation || '',
+            unique_id: a.unique_id || '',
+            whatsapp_number: a.whatsapp_number || '',
+            remarks: a.remarks || '',
+            attendance_status: a.attendance_status || 'Present',
+          })),
+          agenda_items: (meeting.agenda_items || []).map((a) => ({
+            topic: a.topic || '',
+            description: a.description || '',
+          })),
+          discussion_summary: meeting.discussion?.summary_text || '',
+          tasks: (meeting.tasks || []).map((t) => ({
+            title: t.title || '',
+            description: t.description || '',
+            responsible_person: t.responsible_person || '',
+            responsible_email: t.responsible_email || '',
+            deadline: t.deadline || '',
+            status: t.status || 'Pending',
+          })),
+        },
+        rescheduleContext: {
+          isRescheduled: true,
+        },
+      },
+    });
   };
 
   // ── Task Operations ────────────────────────────────
@@ -190,26 +209,6 @@ export default function MeetingDetailPage() {
     }
   };
 
-  // ── Discussion Save ────────────────────────────────
-  const handleSaveDiscussion = async () => {
-    try {
-      await api.post(`/meetings/${id}/mom`, {
-        attendees: meeting!.attendees.map(a => ({ id: a.id, attendance_status: a.attendance_status })),
-        discussion_summary: discussionText,
-        tasks: meeting!.tasks.map(t => ({
-          title: t.title, description: t.description, responsible_person: t.responsible_person,
-          responsible_email: t.responsible_email, deadline: t.deadline, status: t.status,
-        })),
-      });
-      toast.success('Discussion summary updated');
-      setEditingDiscussion(false);
-      queryClient.invalidateQueries({ queryKey: ['meeting', id] });
-    } catch {
-      toast.error('Failed to update discussion');
-    }
-  };
-
-
   if (isLoading || !meeting) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
@@ -231,7 +230,9 @@ export default function MeetingDetailPage() {
   ];
 
   const normalizedStatus = String(meeting.status || '').trim().toLowerCase();
-  const canAction = normalizedStatus === 'scheduled' || normalizedStatus === 'rescheduled' || normalizedStatus === 'processing';
+  const canReschedule = normalizedStatus === 'scheduled' || normalizedStatus === 'rescheduled' || normalizedStatus === 'cancelled' || normalizedStatus === 'processing';
+  const canCancel = normalizedStatus === 'scheduled' || normalizedStatus === 'rescheduled' || normalizedStatus === 'processing';
+  const canRecord = normalizedStatus === 'scheduled' || normalizedStatus === 'rescheduled' || normalizedStatus === 'processing';
   const showTasksSection = normalizedStatus === 'completed';
   const inputClass = 'w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all';
 
@@ -244,20 +245,24 @@ export default function MeetingDetailPage() {
           <ArrowLeftIcon className="w-4 h-4" /> Back to Meetings
         </Link>
         <div className="flex flex-wrap items-center gap-2">
-          {canAction && (
+          {(canReschedule || canCancel) && (
             <div className="flex flex-wrap gap-2">
-              <button
-                onClick={handleRescheduleMeeting}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 md:px-3.5 md:py-2 text-[12px] md:text-[13px] font-semibold rounded-xl bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-400 hover:bg-brand-100 dark:hover:bg-brand-500/20 border border-brand-100 dark:border-brand-500/20 transition-all active:scale-[0.98]"
-              >
-                <CalendarDaysIcon className="w-4 h-4" /> Reschedule
-              </button>
-              <button
-                onClick={handleCancelMeeting}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 md:px-3.5 md:py-2 text-[12px] md:text-[13px] font-semibold rounded-xl bg-orange-50 dark:bg-orange-500/10 text-orange-700 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-500/20 border border-orange-100 dark:border-orange-500/20 transition-all active:scale-[0.98]"
-              >
-                <ClockIcon className="w-4 h-4" /> Cancel
-              </button>
+              {canReschedule && (
+                <button
+                  onClick={handleRescheduleMeeting}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 md:px-3.5 md:py-2 text-[12px] md:text-[13px] font-semibold rounded-xl bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-400 hover:bg-brand-100 dark:hover:bg-brand-500/20 border border-brand-100 dark:border-brand-500/20 transition-all active:scale-[0.98]"
+                >
+                  <CalendarDaysIcon className="w-4 h-4" /> Reschedule
+                </button>
+              )}
+              {canCancel && (
+                <button
+                  onClick={handleCancelMeeting}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 md:px-3.5 md:py-2 text-[12px] md:text-[13px] font-semibold rounded-xl bg-orange-50 dark:bg-orange-500/10 text-orange-700 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-500/20 border border-orange-100 dark:border-orange-500/20 transition-all active:scale-[0.98]"
+                >
+                  <ClockIcon className="w-4 h-4" /> Cancel
+                </button>
+              )}
             </div>
           )}
           
@@ -269,7 +274,7 @@ export default function MeetingDetailPage() {
               <TrashIcon className="w-4 h-4" /> Delete
             </button>
 
-            {canAction && (
+            {canRecord && (
               <Link
                 to={`/meetings/${id}/log-mom`}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 md:px-3.5 md:py-2 text-[12px] md:text-[13px] font-semibold rounded-xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 border border-emerald-100 dark:border-emerald-500/20 transition-all active:scale-[0.98]"
@@ -289,7 +294,7 @@ export default function MeetingDetailPage() {
       </div>
 
       {/* ── Recording Section ── */}
-      {meeting.status === 'Scheduled' && (
+      {(normalizedStatus === 'scheduled' || normalizedStatus === 'rescheduled') && (
         <RecordingOverlay 
           meetingId={meeting.id} 
           meetingType="Regular" 
@@ -299,7 +304,7 @@ export default function MeetingDetailPage() {
       )}
 
       {/* ── Processing Progress Banner ── */}
-      {((meeting.status === 'Processing' && !meeting.ai_summary_link) || meeting.status === 'Scheduled') && (
+      {((normalizedStatus === 'processing' && !meeting.ai_summary_link) || normalizedStatus === 'scheduled' || normalizedStatus === 'rescheduled') && (
         <ProcessingBanner
           meetingId={meeting.id}
           meetingType="Regular"
@@ -459,50 +464,24 @@ export default function MeetingDetailPage() {
         )}
       </Section>
 
-      {/* ── Discussion Summary (Editable) ── */}
+      {/* ── Discussion Summary ── */}
       <Section 
         title="Discussion Summary" 
         icon={<CheckCircleIcon className="w-[18px] h-[18px]" />}
-        action={
-          !editingDiscussion ? (
-            <button onClick={() => setEditingDiscussion(true)} className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400 hover:bg-brand-100 transition-colors">
-              <PencilSquareIcon className="w-3 h-3" /> Edit
-            </button>
-          ) : (
-            <div className="flex gap-2">
-              <button onClick={handleSaveDiscussion} className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors">
-                <CheckCircleIcon className="w-3 h-3" /> Save
-              </button>
-              <button onClick={() => { setEditingDiscussion(false); setDiscussionText(meeting?.discussion?.summary_text || ''); }} className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">
-                <XMarkIcon className="w-3 h-3" /> Cancel
-              </button>
-            </div>
-          )
-        }
       >
-        {editingDiscussion ? (
-          <textarea
-            rows={6}
-            value={discussionText}
-            onChange={(e) => setDiscussionText(e.target.value)}
-            className={`${inputClass} resize-none leading-relaxed`}
-            placeholder="Enter discussion summary..."
+        {meeting.discussion ? (
+          <div 
+            className="text-[13px] text-slate-700 dark:text-slate-300 leading-relaxed space-y-2"
+            dangerouslySetInnerHTML={{ 
+              __html: (meeting.discussion.summary_text || "")
+                .replace(/\*\*\s*(.*?)\s*\*\*/gs, '<b class="font-extrabold text-slate-900 dark:text-white">$1</b>')
+                .replace(/^###\s*(.*)$/gm, '<h3 class="text-md font-extrabold text-brand-600 dark:text-brand-400 mt-4 mb-2 uppercase tracking-wide">$1</h3>')
+                .replace(/^##\s*(.*)$/gm, '<h2 class="text-lg font-extrabold text-brand-700 dark:text-brand-300 mt-5 mb-2 uppercase tracking-tight">$1</h2>')
+                .replace(/\n/g, '<br/>')
+            }} 
           />
         ) : (
-          meeting.discussion ? (
-            <div 
-              className="text-[13px] text-slate-700 dark:text-slate-300 leading-relaxed space-y-2"
-              dangerouslySetInnerHTML={{ 
-                __html: (meeting.discussion.summary_text || "")
-                  .replace(/\*\*\s*(.*?)\s*\*\*/gs, '<b class="font-extrabold text-slate-900 dark:text-white">$1</b>')
-                  .replace(/^###\s*(.*)$/gm, '<h3 class="text-md font-extrabold text-brand-600 dark:text-brand-400 mt-4 mb-2 uppercase tracking-wide">$1</h3>')
-                  .replace(/^##\s*(.*)$/gm, '<h2 class="text-lg font-extrabold text-brand-700 dark:text-brand-300 mt-5 mb-2 uppercase tracking-tight">$1</h2>')
-                  .replace(/\n/g, '<br/>')
-              }} 
-            />
-          ) : (
-            <p className="text-sm text-slate-400 italic">No discussion summary recorded. Click "Edit" to add one.</p>
-          )
+          <p className="text-sm text-slate-400 italic">No discussion summary recorded.</p>
         )}
       </Section>
 

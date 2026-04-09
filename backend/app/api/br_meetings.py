@@ -47,6 +47,7 @@ async def list_br_meetings(skip: int = 0, limit: int = 100):
 @router.post("/", response_model=MeetingResponse, status_code=status.HTTP_201_CREATED)
 async def create_br_meeting(data: MeetingCreate):
     br = await BRService.create_br(None, data)
+    is_rescheduled_invite = str(getattr(br, "status", "")).strip().lower() == "rescheduled"
     
     # Notify directors
     for attendee in br.attendees:
@@ -58,7 +59,8 @@ async def create_br_meeting(data: MeetingCreate):
                 time=str(br.time) if br.time else "TBD",
                 venue=br.venue or "TBD",
                 remarks=getattr(attendee, "remarks", None),
-                is_br=True
+                is_br=True,
+                is_rescheduled=is_rescheduled_invite,
             )
     return br
 

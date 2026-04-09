@@ -180,10 +180,23 @@ class EmailService:
         await EmailService.send_email(to_email, subject, html)
 
     @staticmethod
-    async def send_meeting_invitation(to_email: str, recipient_name: str, meeting_title: str, date: str, time: str, venue: str, remarks: Optional[str] = None, is_br: bool = False):
-        subject = f"Official Board Resolution Invitation: {meeting_title}" if is_br else f"Meeting Invitation: {meeting_title}"
-        intro = "You are hereby formally invited to review and deliberate upon an upcoming Board Resolution." if is_br else "You have been officially invited to the upcoming scheduled meeting."
+    async def send_meeting_invitation(to_email: str, recipient_name: str, meeting_title: str, date: str, time: str, venue: str, remarks: Optional[str] = None, is_br: bool = False, is_rescheduled: bool = False):
+        if is_rescheduled:
+            subject = f"UPDATED BOARD RESOLUTION INVITATION: {meeting_title}" if is_br else f"Rescheduled Meeting Invitation: {meeting_title}"
+            intro = "This is an updated invitation for a rescheduled Board Resolution session." if is_br else "This is an updated invitation for a rescheduled meeting."
+        else:
+            subject = f"Official Board Resolution Invitation: {meeting_title}" if is_br else f"Meeting Invitation: {meeting_title}"
+            intro = "You are hereby formally invited to review and deliberate upon an upcoming Board Resolution." if is_br else "You have been officially invited to the upcoming scheduled meeting."
         meeting_label = "RESOLUTION TITLE" if is_br else "MEETING TITLE"
+
+        reschedule_notice = ""
+        if is_rescheduled:
+            notice_style = "background-color: #fffbeb; border: 1px solid #fde68a; color: #92400e;"
+            reschedule_notice = f"""
+            <div style="{notice_style} padding: 16px; border-radius: 6px; margin-bottom: 24px;">
+                <p style="margin: 0; font-size: 14px; line-height: 1.6;"><strong>Schedule Update:</strong> This invitation replaces an earlier schedule. Please refer to the updated date and time below.</p>
+            </div>
+            """
         
         remarks_html = ""
         if remarks:
@@ -199,6 +212,7 @@ class EmailService:
             <p style="font-size: 15px; color: #334155; line-height: 1.6; margin: 0 0 18px;">{intro}</p>
             
             {remarks_html}
+            {reschedule_notice}
 
             <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;">
                 <tr>
@@ -223,7 +237,7 @@ class EmailService:
             
             <p style="font-size: 15px; color: #334155; line-height: 1.6; margin: 0;">Your presence and counsel are requested. Please acknowledge your attendance in the board portal.</p>
         """
-        html = get_base_template("Official Invitation", content, is_br=is_br)
+        html = get_base_template("Schedule Update" if is_rescheduled else "Official Invitation", content, is_br=is_br)
         await EmailService.send_email(to_email, subject, html)
 
     @staticmethod

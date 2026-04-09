@@ -280,6 +280,7 @@ async def create_meeting(data: MeetingCreate):
         raise
 
     # Send notifications
+    is_rescheduled_invite = str(getattr(meeting, "status", "")).strip().lower() == "rescheduled"
     for attendee in meeting.attendees:
         if attendee.email:
             await NotificationService.notify_meeting_invitation(
@@ -288,7 +289,8 @@ async def create_meeting(data: MeetingCreate):
                 date=str(meeting.date) if meeting.date else "TBD",
                 time=str(meeting.time) if meeting.time else "TBD",
                 venue=meeting.venue or "TBD",
-                remarks=getattr(attendee, "remarks", None)
+                remarks=getattr(attendee, "remarks", None),
+                is_rescheduled=is_rescheduled_invite,
             )
 
     for task in meeting.tasks:
